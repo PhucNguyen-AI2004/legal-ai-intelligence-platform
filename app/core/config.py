@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, field_validator
+from pydantic import Field, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -19,6 +19,17 @@ class Settings(BaseSettings):
     app_name: str = Field(min_length=1)
     app_env: Literal["development", "test", "production"]
     database_url: PostgresDsn
+    secret_key: SecretStr
+    access_token_expire_minutes: int = Field(default=30, ge=1, le=1440)
+    algorithm: Literal["HS256"] = "HS256"
+
+    @field_validator("secret_key")
+    @classmethod
+    def validate_secret_key(cls, value: SecretStr) -> SecretStr:
+        secret = value.get_secret_value()
+        if len(secret.encode("utf-8")) < 32 or len(set(secret)) < 8:
+            raise ValueError("SECRET_KEY must be a random secret of at least 32 bytes")
+        return value
 
     @field_validator("database_url")
     @classmethod

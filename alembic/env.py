@@ -2,15 +2,16 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import create_engine, pool
+from sqlalchemy.engine import Connection
 
 from app.core.config import get_settings
 from app.db.base import Base
+from app import models  # noqa: F401 -- register model metadata for autogenerate
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import future business models here so autogenerate sees their tables.
 target_metadata = Base.metadata
 
 
@@ -27,6 +28,12 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    # Tests supply an isolated connection; normal CLI runs use DATABASE_URL.
+    supplied_connection = config.attributes.get("connection")
+    if supplied_connection is not None:
+        configure_connection(supplied_connection)
+        return
+
     connectable = create_engine(
         str(get_settings().database_url),
         poolclass=pool.NullPool,
@@ -34,15 +41,19 @@ def run_migrations_online() -> None:
     )
     try:
         with connectable.connect() as connection:
-            context.configure(
-                connection=connection,
-                target_metadata=target_metadata,
-                compare_type=True,
-            )
-            with context.begin_transaction():
-                context.run_migrations()
+            configure_connection(connection)
     finally:
         connectable.dispose()
+
+
+def configure_connection(connection: Connection) -> None:
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+    )
+    with context.begin_transaction():
+        context.run_migrations()
 
 
 if context.is_offline_mode():

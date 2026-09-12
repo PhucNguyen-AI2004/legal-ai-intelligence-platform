@@ -21,6 +21,9 @@ services:
     environment:
       APP_NAME: ${APP_NAME:?Set APP_NAME in .env}
       APP_ENV: ${APP_ENV:?Set APP_ENV in .env}
+      SECRET_KEY: ${SECRET_KEY:?Generate SECRET_KEY in .env}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      ALGORITHM: ${ALGORITHM:-HS256}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}
     ports:
       - "127.0.0.1:8000:8000"
