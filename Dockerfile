@@ -10,6 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 RUN groupadd --system app && useradd --system --gid app app
+RUN mkdir -p /app/storage/documents && chown -R app:app /app/storage
 COPY --chown=app:app app ./app
 COPY --chown=app:app alembic ./alembic
 COPY --chown=app:app alembic.ini .

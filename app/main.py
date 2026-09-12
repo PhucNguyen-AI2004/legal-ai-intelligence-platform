@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from app.api.health import router as health_router
 from app.api.auth import router as auth_router
+from app.api.documents import router as documents_router
 from app.core.config import get_settings
 from app.db.session import engine
 
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title=get_settings().app_name, lifespan=lifespan)
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(documents_router)
 
 
 @app.exception_handler(RequestValidationError)

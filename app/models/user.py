@@ -1,10 +1,14 @@
 from datetime import datetime
 from uuid import UUID, uuid4
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, String, Uuid, func, true
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.document import Document
 
 
 class User(Base):
@@ -20,4 +24,8 @@ class User(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    # Do not cascade metadata deletion while physical files still exist.
+    documents: Mapped[list["Document"]] = relationship(
+        back_populates="owner", passive_deletes="all"
     )

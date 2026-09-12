@@ -22,6 +22,17 @@ class Settings(BaseSettings):
     secret_key: SecretStr
     access_token_expire_minutes: int = Field(default=30, ge=1, le=1440)
     algorithm: Literal["HS256"] = "HS256"
+    document_storage_path: Path = Path("storage/documents")
+    max_upload_size_mb: int = Field(default=20, ge=1, le=100)
+
+    @property
+    def storage_directory(self) -> Path:
+        path = self.document_storage_path
+        return (path if path.is_absolute() else PROJECT_ROOT / path).resolve()
+
+    @property
+    def max_upload_size_bytes(self) -> int:
+        return self.max_upload_size_mb * 1024 * 1024
 
     @field_validator("secret_key")
     @classmethod

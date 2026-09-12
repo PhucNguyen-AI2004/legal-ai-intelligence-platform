@@ -21,13 +21,13 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 from app import main
-from app.core.config import PROJECT_ROOT
+from app.core.config import PROJECT_ROOT, get_settings
 from app.db.session import get_db
 
 
@@ -48,6 +48,9 @@ def db_engine(tmp_path_factory):
     else:
         path = tmp_path_factory.mktemp("auth") / "auth.db"
         engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
+        @event.listens_for(engine, "connect")
+        def enable_foreign_keys(connection, record):
+            connection.execute("PRAGMA foreign_keys=ON")
 
     try:
         # Exercise the actual migration, never Base.metadata.create_all().
@@ -84,7 +87,15 @@ def db_session(db_engine):
 
 
 @pytest.fixture
-def client(db_session, db_engine, monkeypatch):
+def document_storage(tmp_path, monkeypatch):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "document_storage_path", tmp_path / "documents")
+    monkeypatch.setattr(settings, "max_upload_size_mb", 1)
+    return settings.storage_directory
+
+
+@pytest.fixture
+def client(db_session, db_engine, monkeypatch, document_storage):
     def override_get_db():
         yield db_session
 

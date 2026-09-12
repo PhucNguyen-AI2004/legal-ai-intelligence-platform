@@ -24,9 +24,13 @@ services:
       SECRET_KEY: ${SECRET_KEY:?Generate SECRET_KEY in .env}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       ALGORITHM: ${ALGORITHM:-HS256}
+      DOCUMENT_STORAGE_PATH: /app/storage/documents
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}
     ports:
       - "127.0.0.1:8000:8000"
+    volumes:
+      - document_storage:/app/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,3 +43,4 @@ services:
 
 volumes:
   postgres_data:
+  document_storage:
