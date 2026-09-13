@@ -5,6 +5,8 @@ from typing import Literal
 from pydantic import Field, PostgresDsn, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.embedding_config import EMBEDDING_MODEL, VECTOR_DIMENSION
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -26,6 +28,29 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = Field(default=20, ge=1, le=100)
     chunk_size: int = Field(default=1200, ge=100, le=20000)
     chunk_overlap: int = Field(default=200, ge=0)
+    embedding_model_name: str = EMBEDDING_MODEL
+    embedding_dimension: int = VECTOR_DIMENSION
+    embedding_batch_size: int = Field(default=16, ge=1, le=128)
+    hf_home: Path = Path(".cache/huggingface")
+
+    @field_validator("embedding_dimension")
+    @classmethod
+    def validate_embedding_dimension(cls, value: int) -> int:
+        if value != VECTOR_DIMENSION:
+            raise ValueError("EMBEDDING_DIMENSION must match the active vector schema")
+        return value
+
+    @field_validator("embedding_model_name")
+    @classmethod
+    def validate_embedding_model(cls, value: str) -> str:
+        if value != EMBEDDING_MODEL:
+            raise ValueError("This phase supports intfloat/multilingual-e5-small only")
+        return value
+
+    @property
+    def model_cache_directory(self) -> Path:
+        path = self.hf_home
+        return (path if path.is_absolute() else PROJECT_ROOT / path).resolve()
 
     @model_validator(mode="after")
     def validate_chunk_overlap(self) -> "Settings":

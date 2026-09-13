@@ -16,7 +16,48 @@ def test_migration_downgrade_upgrade_and_metadata_match(db_session):
     assert "users" in inspect(connection).get_table_names()
     assert "documents" in inspect(connection).get_table_names()
     assert "document_chunks" in inspect(connection).get_table_names()
-    assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0003_document_processing"
+    assert "chunk_embeddings" in inspect(connection).get_table_names()
+    assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0004_vector_embeddings"
+    command.check(config)
+
+
+def test_vector_migration_constraints_and_dimension(db_session):
+    from app.core.embedding_config import VECTOR_DIMENSION
+
+    connection = db_session.bind
+    inspector = inspect(connection)
+    assert any(item["column_names"] == ["chunk_id"] for item in inspector.get_unique_constraints("chunk_embeddings"))
+    assert inspector.get_foreign_keys("chunk_embeddings")[0]["options"]["ondelete"] == "CASCADE"
+    if connection.dialect.name == "postgresql":
+        assert connection.scalar(text("SELECT extname FROM pg_extension WHERE extname = 'vector'")) == "vector"
+        column = next(item for item in inspector.get_columns("chunk_embeddings") if item["name"] == "embedding")
+        assert column["type"].dim == VECTOR_DIMENSION
+
+
+def test_vector_migration_preserves_processed_chunks(db_session):
+    import sqlalchemy as sa
+    from uuid import uuid4
+
+    connection = db_session.bind
+    config = Config(str(PROJECT_ROOT / "alembic.ini"))
+    config.attributes["connection"] = connection
+    command.downgrade(config, "0003_document_processing")
+    tables = sa.MetaData()
+    users = sa.Table("users", tables, autoload_with=connection)
+    documents = sa.Table("documents", tables, autoload_with=connection)
+    chunks = sa.Table("document_chunks", tables, autoload_with=connection)
+    identities = [uuid4() for _ in range(3)]
+    owner_id, document_id, chunk_id = [value if connection.dialect.name == "postgresql" else value.hex for value in identities]
+    connection.execute(users.insert().values(id=owner_id, email="vector-migration@example.com", hashed_password="test-only", full_name="Owner"))
+    connection.execute(documents.insert().values(
+        id=document_id, owner_id=owner_id, original_filename="law.txt", stored_filename="old.txt", file_path="old.txt",
+        file_type="txt", mime_type="text/plain", file_size=6, title="Existing law", status="processed",
+    ))
+    connection.execute(chunks.insert().values(id=chunk_id, document_id=document_id, chunk_index=0, content="access", char_count=6, token_estimate=2))
+    command.upgrade(config, "head")
+    assert connection.scalar(text("SELECT content FROM document_chunks")) == "access"
+    assert connection.scalar(text("SELECT embedding_status FROM documents")) == "pending"
+    assert connection.scalar(text("SELECT status FROM documents")) == "processed"
     command.check(config)
 
 

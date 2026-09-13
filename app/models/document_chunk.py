@@ -9,6 +9,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.document import Document
+    from app.models.chunk_embedding import ChunkEmbedding
 
 
 class DocumentChunk(Base):
@@ -30,3 +31,7 @@ class DocumentChunk(Base):
     token_estimate: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     document: Mapped["Document"] = relationship(back_populates="chunks")
+    embedding: Mapped["ChunkEmbedding | None"] = relationship(
+        back_populates="chunk", cascade="all, delete-orphan", passive_deletes=True,
+        uselist=False,
+    )

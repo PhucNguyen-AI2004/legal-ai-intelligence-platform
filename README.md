@@ -4,16 +4,17 @@
 
 Dự án portfolio hướng tới vị trí Fresher/Junior AI Engineer hoặc Data Engineer.
 Mục tiêu dài hạn là xử lý tài liệu pháp luật và trả lời câu hỏi có dẫn nguồn.
-**Phase 4 bổ sung document processing pipeline**: extract text → normalize →
-chunk → lưu PostgreSQL, trên nền backend/auth/documents hiện có.
+**Phase 5 bổ sung local embeddings và semantic search** trên nền backend,
+authentication, documents và processing hiện có. Hướng dẫn nâng cấp và kiểm tra
+model thật ở mục **Phase 5** bên dưới.
 
 ## Current phase
 
 Đã có FastAPI, cấu hình môi trường, SQLAlchemy, PostgreSQL, Alembic, Docker,
 bảng users, đăng ký, đăng nhập bằng JWT, upload/lưu metadata, list/detail/delete
-tài liệu thuộc user hiện tại, xử lý tài liệu và xem chunks. Phase 1–3 đã được
+tài liệu thuộc user hiện tại, xử lý tài liệu, index embeddings và semantic search. Phase 1–4 đã được
 người dùng xác nhận test thực tế.
-Chưa có OCR, LLM, RAG, embedding, vector database, frontend, social login,
+Chưa có OCR, LLM, RAG, frontend, social login,
 refresh token, email verification, forgot password hoặc role/permission phức tạp.
 Đây là nền tảng có cấu trúc để mở rộng; chưa phải bản triển
 khai production hoàn chỉnh (chưa có TLS, secrets manager, backup hay monitoring).
@@ -26,6 +27,8 @@ khai production hoàn chỉnh (chưa có TLS, secrets manager, backup hay monito
 | FastAPI + Uvicorn | HTTP API và ASGI server |
 | SQLAlchemy 2.x + psycopg 3 | Engine, connection pool, ORM session và PostgreSQL driver |
 | PostgreSQL 16 | Database quan hệ |
+| pgvector | Lưu vector và exact cosine search trong PostgreSQL |
+| Sentence Transformers + PyTorch CPU | Local multilingual embeddings, không dùng paid API |
 | Alembic | Quản lý thay đổi schema có phiên bản |
 | Pydantic Settings | Đọc và validate cấu hình |
 | Pydantic v2 + email-validator | Validate email, password và response công khai |
@@ -211,7 +214,7 @@ docker compose exec backend alembic upgrade head
 docker compose exec backend alembic current
 ```
 
-Phase 4 có head `0003_document_processing`; `current` phải hiển thị revision này.
+Head hiện tại là `0004_vector_embeddings`; `current` phải hiển thị revision này.
 Upgrade giữ users/documents và thêm processing_error/document_chunks. Database
 mới chạy cả ba migration theo thứ tự. Chạy `docker compose exec backend alembic check`
 để kiểm tra model/schema có đồng bộ không.
@@ -544,7 +547,7 @@ trọn trong một chunk, nhất là paragraph quá dài.
 Chunks không rỗng, chunk_index bắt đầu từ 0, liên tục; chunk cuối luôn được giữ.
 `char_count = len(content)` tính Unicode code points, không phải byte UTF-8.
 `token_estimate = ceil(char_count / 4)` chỉ là heuristic, có thể lệch đáng kể với
-tiếng Việt và từng tokenizer; chưa có tokenizer LLM hay embedding.
+tiếng Việt và từng tokenizer; chunking vẫn dựa trên ký tự, không phải model tokens.
 
 ### Database design
 
@@ -700,7 +703,7 @@ Alembic lưu lịch sử schema trong source control và database, giúp các m�
 cùng có schema tương ứng với code. Review script trước khi chạy; autogenerate
 không hiểu mọi ý định thay đổi dữ liệu. Migration không tự chạy khi API startup.
 
-### Trạng thái kiểm chứng Phase 4
+### Lịch sử kiểm chứng khi triển khai Phase 4
 
 - Đã kiểm tra bằng Python 3.13/thư viện có sẵn: TXT UTF-8/BOM, normalization,
   chunking với nhiều tổ hợp size/overlap, paragraph/word boundaries, chunk index,
@@ -732,12 +735,248 @@ không hiểu mọi ý định thay đổi dữ liệu. Migration không tự ch
 - DB user trong Compose là development bootstrap user; production nên tách quyền
   migration và quyền runtime tối thiểu. Không dùng password development ở production.
 
+## Phase 5: Local embeddings và semantic search
+
+### Kiến trúc và files
+
+```text
+Document -> DocumentChunk -> EmbeddingService (CPU, passage prefix)
+                                  -> chunk_embeddings VECTOR(384) -> pgvector
+Query -> cùng EmbeddingService (query prefix) -> cosine search
+          -> lọc owner + processed + indexed + model -> top K chunks
+```
+
+Lọc ownership nằm trong SQL trước ranking/limit, không lấy kết quả toàn hệ thống
+rồi lọc bằng Python. Đây là semantic retrieval, chưa tạo câu trả lời bằng LLM.
+
+```text
+app/core/embedding_config.py       # model/dimension chuẩn của application
+app/services/embeddings.py         # lazy model, batch, validate vectors
+app/services/document_indexing.py  # lifecycle + atomic replacement
+app/services/semantic_search.py    # ownership + cosine SQL
+app/models/chunk_embedding.py      # bảng vector tách khỏi raw text
+app/schemas/search.py              # request/result/index schemas
+app/api/search.py                  # POST /search
+app/api/documents.py               # thêm POST /documents/{id}/index
+alembic/versions/0004_vector_embeddings.py
+tests/test_embeddings.py
+tests/test_semantic_search.py
+```
+
+`Depends(get_embedding_service)` cung cấp backend dùng chung và cho phép test
+thay bằng fake service. Constructor không tải model; `load_model()` chạy lần đầu
+cần inference, kiểm tra dimension thực tế rồi giữ model trong RAM. Lock ngăn hai
+request cùng load và giới hạn một lần encode tại một thời điểm trong mỗi process.
+Alembic/import application không tải weights. Log ghi model/dimension, bắt đầu,
+số chunks, hoàn thành hoặc loại lỗi; không ghi password, JWT hay vectors.
+
+### Model và cấu hình
+
+Chọn **intfloat/multilingual-e5-small**, output **384 chiều**, hỗ trợ multilingual
+bao gồm tiếng Việt và English. Dùng `passage: ` cho chunks, `query: ` cho query,
+kể cả tiếng Việt, và `normalize_embeddings=True` theo
+[model card chính thức](https://huggingface.co/intfloat/multilingual-e5-small).
+Đây là model retrieval tổng quát, chưa được đánh giá chuyên biệt trên bộ luật của bạn.
+
+```dotenv
+EMBEDDING_MODEL_NAME=intfloat/multilingual-e5-small
+EMBEDDING_DIMENSION=384
+EMBEDDING_BATCH_SIZE=16
+HF_HOME=.cache/huggingface
+```
+
+Thêm các key còn thiếu vào `.env` hiện có; không chép đè secret/database settings.
+Settings Phase 5 chỉ chấp nhận model và dimension này để tránh trộn không gian
+vector. Dimension dùng chung từ `embedding_config.py`; migration giữ số 384 cố
+định vì là snapshot lịch sử. Đổi model cần cập nhật code, re-index toàn bộ; nếu đổi
+dimension cần migration mới. Hai model cùng dimension vẫn không tương thích.
+Hiện lưu `model_name`, chưa pin Hugging Face revision; khi thay weights/revision
+cần kiểm soát phiên bản và re-index, không trộn weights cũ/mới.
+
+### Database và trạng thái
+
+`chunk_embeddings`: UUID `id`, unique `chunk_id` FK cascade về `document_chunks`,
+`embedding VECTOR(384)`, `model_name`, `created_at` có timezone. Unique chunk_id
+đảm bảo mỗi chunk có một embedding active. Tách bảng giúp raw text và vector có
+lifecycle rõ ràng; chưa cần lưu nhiều phiên bản model cùng lúc.
+
+Document có `embedding_status`, `embedding_error`, `embedded_at`. Processing
+status mô tả extract/chunk; embedding status mô tả khả năng retrieval, vì hai bước
+có thể thành công/thất bại độc lập.
+
+1. Upload/process tạo trạng thái `pending`.
+2. `/index` kiểm tra owner, document `processed`, có chunks; lock và commit `indexing`.
+3. Lấy chunks theo chunk_index; một encode call với batch size cấu hình.
+4. Validate số vectors, chiều, giá trị hữu hạn và norm khác zero.
+5. Trong một transaction: xóa embeddings cũ, insert toàn bộ mới, chuyển `indexed`, cập nhật embedded_at.
+6. Nếu lỗi: rollback toàn bộ replacement, chuyển `failed`, lưu lỗi an toàn và trả 503.
+
+Re-index không nhân bản rows. Nếu thất bại, bộ vectors cũ còn nguyên nhưng không
+được search vì status là failed. `embedded_at` vẫn là lần index thành công trước.
+Khi bắt đầu reprocess, reset pending/error/timestamp để không dùng vectors stale;
+khi thay chunks thành công, FK cascade xóa embeddings cũ. Nếu reprocess thất bại,
+chunks/vectors cũ giữ nguyên nhưng không searchable. Trong lúc indexing, các API
+index/process/delete cùng document trả 409 để tránh thay chunks giữa chừng.
+
+### API và score
+
+`POST /documents/{document_id}/index` yêu cầu Bearer token, trả:
+
+```json
+{"document_id":"<UUID>","embedding_status":"indexed","embedded_chunks":8,"model_name":"intfloat/multilingual-e5-small"}
+```
+
+`POST /search` yêu cầu Bearer token:
+
+```json
+{"query":"Quyền của người sử dụng dữ liệu là gì?","top_k":5,"document_ids":null}
+```
+
+Query trim rồi validate 1–1000 ký tự; top_k mặc định 5, giới hạn 1–20.
+document_ids null/không truyền: tất cả tài liệu hợp lệ của current user. List phải
+có 1–100 UUID, duplicate được loại; `[]` trả 422. Nếu bất kỳ ID nào không tồn tại
+hoặc thuộc user khác, trả 404 trước khi embed query. Không tiết lộ ID nào là của
+user khác. Chỉ search tài liệu processed + indexed và đúng model_name.
+
+Response gồm `model_name`, `results`; mỗi result có document_id, document_title,
+chunk_id, chunk_index, content, score. Empty library trả results rỗng mà không load
+model. SQL dùng toán tử cosine `<=>` của pgvector: `score = 1 - distance`, sắp xếp
+score giảm dần, hòa điểm theo document_id/chunk_index. Score thuộc [-1, 1], càng cao
+càng tương đồng; không phải xác suất, phần trăm chính xác hay kết luận pháp lý.
+Không có threshold relevance: top K vẫn có thể chứa đoạn không liên quan.
+
+Exact search chưa có HNSW/IVFFlat: đơn giản, không có recall trade-off do ANN,
+phù hợp dataset portfolio nhỏ. Tham khảo [pgvector](https://github.com/pgvector/pgvector)
+và [SQLAlchemy integration](https://github.com/pgvector/pgvector-python).
+
+### Docker, backup và migration giữ dữ liệu hiện tại
+
+Đổi image từ PostgreSQL 16 bookworm sang `pgvector/pgvector:pg16-bookworm`, giữ
+service, major version, volume `postgres_data`, data directory và Compose project
+hiện có. Không đổi project name khi nâng cấp app; không chạy `down -v`.
+Image mới cung cấp extension binaries; migration mới bật extension và tạo schema.
+Các migration 0001–0003 giữ nguyên; không dùng create_all.
+
+Backup **trước khi thay container PostgreSQL đang chạy**. Ví dụ development user
+`legal_ai_dev`; thay nếu `.env` của bạn khác. Dump bên trong container để tránh
+PowerShell làm hỏng binary dump qua output redirection:
+
+```powershell
+New-Item -ItemType Directory -Force backups
+docker compose exec postgres pg_dump -U legal_ai_dev -d legal_ai -Fc -f /tmp/legal_ai_before_phase5.dump
+docker compose cp postgres:/tmp/legal_ai_before_phase5.dump ./backups/legal_ai_before_phase5.dump
+docker compose config --quiet
+docker compose pull postgres
+docker compose up --build -d
+docker compose exec backend alembic upgrade head
+docker compose exec backend alembic current
+docker compose exec backend alembic check
+```
+
+Head mong đợi `0004_vector_embeddings`; users/documents/chunks hiện có được giữ,
+embedding_status ban đầu pending. Backup chưa đủ: khi vận hành cần kiểm tra restore
+trên database riêng. Không downgrade migration này để thử trên dữ liệu cần giữ vì
+downgrade xóa bảng embeddings. Extension public được giữ khi downgrade vì có thể dùng chung.
+
+Backend chạy non-root, `model_cache` mount tại `/app/.cache/huggingface`. Rebuild
+container giữ weights trên volume; restart process vẫn phải load weights vào RAM.
+Public model được tải với `token=False`, không cần Hugging Face token. Git/Docker
+ignore `.cache/` và `backups/`; không đưa weights hoặc `.env` vào Git/image.
+
+Dockerfile cài PyTorch từ CPU wheel index trước requirements để không yêu cầu CUDA.
+Build cần mạng tải dependencies; lần index đầu cần mạng tải model, có thể khá lâu.
+Local Python 3.12, sau khi activate venv và cấu hình DATABASE_URL localhost:
+
+```powershell
+python -m pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.6,<3.0"
+python -m pip install -r requirements-dev.txt
+docker compose up -d postgres
+python -m alembic upgrade head
+python -m uvicorn app.main:app --reload
+```
+
+### Manual test model thật trong Swagger
+
+1. Mở `http://localhost:8000/docs`, register/login và Authorize bằng access_token.
+2. Upload TXT A chứa: “Người sử dụng có quyền truy cập dữ liệu trong phạm vi được cấp quyền.”
+3. Upload TXT B chứa: “Doanh nghiệp kê khai và nộp thuế theo thời hạn quy định.”
+4. Gọi `/documents/{id}/process` cho cả hai; kiểm tra chunks.
+5. Gọi `/documents/{id}/index` cho cả hai; chờ tải model lần đầu, kiểm tra indexed/count.
+6. POST /search: query “Người dùng được phép làm gì với dữ liệu?”, top_k 2.
+   Kỳ vọng đoạn A đứng trên B dù khác từ; tự quan sát score và nội dung, đây chưa
+   phải kết quả benchmark đã được xác nhận trong phiên triển khai.
+7. Thử query tiếng Anh “What access rights does a data user have?” và filter document_ids.
+8. Index lại A: số rows không tăng; process lại A: pending, không được search tới khi index lại.
+9. Login user khác: không thấy A/B; truyền ID A trả 404. Xóa token: 401.
+
+### Automated tests và mức kiểm chứng
+
+```powershell
+python -m pytest -q
+python -m pytest -q tests/test_embeddings.py tests/test_semantic_search.py tests/test_migrations.py
+docker compose -p legal-ai-phase5-tests -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test
+docker compose -p legal-ai-phase5-tests -f docker-compose.test.yml down
+```
+
+Default dùng SQLite JSON + hàm cosine **chỉ trong test**, không thay thế pgvector
+production. Test Docker dùng PostgreSQL/pgvector riêng, tmpfs, không mount volume
+app. TEST_DATABASE_URL chỉ chấp nhận database kết thúc `_test`, tạo schema riêng;
+search_path gồm schema đó và public cho vector extension. Cùng suite kiểm tra SQL
+cosine thật khi chạy PostgreSQL. Cả hai chế độ fake embeddings và chặn model download.
+
+Coverage đã viết: lazy loading, prefix/normalization/batching, dimension, processed
+index, re-index không duplicate, rollback partial replacement, reprocess invalidation,
+cascade, ownership, 401/404/409, top K/filter/status/model và query validation;
+migration preservation và extension/vector dimension trên PostgreSQL; OpenAPI routes.
+
+**Kiểm chứng phiên Phase 5:** kiểm tra cú pháp và Compose config thành công; smoke
+offline bằng Python global kiểm tra Settings/import các module embedding/schema,
+fake encoder load một lần, prefixes, normalization option và validation thành công.
+Chưa xác nhận toàn bộ app imports, pytest, Docker build/start, migration PostgreSQL,
+Swagger runtime hoặc chất lượng model thật: môi trường thiếu dependencies và quyền
+cài dependency/chạy Docker test đã bị từ chối. Không coi các test đã viết là đã pass.
+Phase 1–4 được người dùng xác nhận chạy thực tế trước phiên này.
+
+### Khái niệm phỏng vấn và performance
+
+- Embedding là dãy số biểu diễn đặc trưng ngữ nghĩa học được. Dimension là số phần
+  tử của vector, không phải số từ. Cùng model cho query/document giữ cùng hệ tọa độ.
+- Keyword search dựa trên từ trùng; semantic search so sánh biểu diễn đã học nên
+  có thể tìm paraphrase. Khả năng này phụ thuộc model/dữ liệu, không bảo đảm đúng.
+- Cosine similarity là dot product chia tích độ dài hai vectors: đo hướng thay vì
+  độ lớn. Normalize đưa norm về 1; PostgreSQL TEXT thông thường không cung cấp kiểu
+  vector/toán tử khoảng cách, extension bổ sung chúng ngay cạnh metadata/FK/transactions.
+- Batch tận dụng tính toán ma trận, giảm overhead gọi model. Batch 16 chỉ giới hạn
+  inference batch; hiện service vẫn giữ texts/vectors cả document trong RAM.
+- Load mỗi request lãng phí thời gian/RAM. Singleton là mỗi process, nhiều Uvicorn
+  workers vẫn nhân số bản model; bắt đầu với một worker, giảm batch nếu thiếu RAM.
+- Indexing đồng bộ có thể chạm timeout HTTP khi tải model hoặc tài liệu lớn. Chưa
+  có queue/job recovery. Exact search chi phí tăng theo số vectors đủ điều kiện.
+- Model cắt input quá 512 tokens theo [model card](https://huggingface.co/intfloat/multilingual-e5-small); chunk size theo ký tự không đảm bảo nằm
+  trong giới hạn này, nhất là tiếng Việt. Đánh giá chất lượng và điều chỉnh chunk
+  size với dữ liệu thực; token-aware chunking là cải tiến sau, chưa triển khai.
+
+### Troubleshooting Phase 5
+
+| Hiện tượng | Kiểm tra/cách xử lý |
+| --- | --- |
+| vector extension unavailable | Container đang chạy đúng pgvector image; recreate PostgreSQL cùng volume rồi upgrade head |
+| permission denied CREATE EXTENSION | Dùng migration account có quyền cài extension; runtime account không cần quyền đó |
+| Dimension/config mismatch | Giữ E5-small/384; đổi model có kế hoạch schema + re-index, không chỉ sửa env |
+| Index 409 | Process thành công trước; kiểm tra document có chunks hoặc đang indexing |
+| Index/search 503 | Kiểm tra dependency, kết nối HF lần đầu, cache permissions, RAM và database; lỗi trả về được làm sạch |
+| Model tải lại sau rebuild | Kiểm tra đúng Compose project, model_cache volume và HF_HOME; không xóa volume |
+| Status indexing bị kẹt sau crash | Xác nhận process indexing cũ đã chết; quản trị reset failed rồi retry. Chưa có automatic recovery; không reset khi job còn chạy |
+| Search rỗng | Kiểm tra owner, processed/indexed, model_name, document_ids; process xong chưa tự index |
+| Search chất lượng thấp | Kiểm tra text extraction/chunks, truncation, cùng model/prefix và dữ liệu test; score không phải confidence |
+| CPU/RAM quá tải | Một worker, giảm EMBEDDING_BATCH_SIZE; document lớn cần thiết kế background jobs sau |
+
 ## Planned next phases
 
-Phase 1 (backend), Phase 2 (User/Auth), Phase 3 (Documents) và Phase 4 (Processing)
-đã có mã nguồn. Các bước dự kiến sau: embedding
-và retrieval; RAG/citation/hội thoại; deploy, monitoring và hardening.
-Chưa triển khai Phase 5, embedding, vector database, RAG hoặc LLM.
+Phase 1–4 đã được người dùng xác nhận chạy thực tế. Phase 5 đã bổ sung mã nguồn
+embeddings và semantic retrieval; giới hạn kiểm chứng của phiên này ghi bên dưới.
+Các phase tiếp theo có thể bổ sung RAG/citation/hội thoại, deploy và monitoring.
+Chưa triển khai Phase 6, LLM, answer generation, reranker hoặc hybrid search.
 
 ## Troubleshooting
 
@@ -757,7 +996,7 @@ Chưa triển khai Phase 5, embedding, vector database, RAG hoặc LLM.
 | ModuleNotFoundError | Cài requirements trong đúng Python/venv hoặc rebuild image |
 | Test PostgreSQL từ chối URL | Dùng database test có tên kết thúc bằng `_test` |
 | Model mới không được autogenerate | Import model vào Alembic env trước khi so sánh metadata |
-| relation documents/document_chunks does not exist | Chạy upgrade head; revision phải là 0003_document_processing |
+| relation documents/document_chunks/chunk_embeddings does not exist | Chạy upgrade head; revision phải là 0004_vector_embeddings |
 | Upload 413 | Giảm file size hoặc chỉnh MAX_UPLOAD_SIZE_MB rồi restart/recreate backend |
 | Upload 415 | Kiểm tra extension/MIME; PDF header, DOCX container hoặc TXT UTF-8 |
 | Document 404 | ID không tồn tại, đã xóa hoặc thuộc user khác |

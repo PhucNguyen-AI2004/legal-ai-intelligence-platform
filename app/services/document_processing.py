@@ -26,9 +26,15 @@ def process_document(
     document = get_document(db, document_id, owner_id, lock=True)
     if document.status == "processing":
         raise HTTPException(409, "Document is already processing")
+    if document.embedding_status == "indexing":
+        raise HTTPException(409, "Cannot process a document while it is indexing")
     key, file_type = document.stored_filename, document.file_type
     document.status = "processing"
     document.processing_error = None
+    # Hide old vectors immediately; successful chunk replacement cascades their deletion.
+    document.embedding_status = "pending"
+    document.embedding_error = None
+    document.embedded_at = None
     db.commit()
 
     try:
@@ -51,6 +57,7 @@ def process_document(
         ])
         document.status = "processed"
         document.processing_error = None
+        document.embedding_status = "pending"
         db.commit()
         return len(chunks)
     except Exception as exc:

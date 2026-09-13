@@ -35,6 +35,9 @@ class Document(Base):
     # String rather than a PostgreSQL enum allows new pipeline states later.
     status: Mapped[str] = mapped_column(String(32), server_default="uploaded")
     processing_error: Mapped[str | None] = mapped_column(String(500))
+    embedding_status: Mapped[str] = mapped_column(String(32), server_default="pending")
+    embedding_error: Mapped[str | None] = mapped_column(String(500))
+    embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

@@ -66,6 +66,8 @@ def delete_document(db: Session, document_id: UUID, owner_id: UUID, storage: Doc
     document = get_document(db, document_id, owner_id, lock=True)
     if document.status == "processing":
         raise HTTPException(409, "Cannot delete a document while it is processing")
+    if document.embedding_status == "indexing":
+        raise HTTPException(409, "Cannot delete a document while it is indexing")
     key = document.stored_filename
     staged_key = storage.stage_delete(key)
     try:

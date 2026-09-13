@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-bookworm
+    image: pgvector/pgvector:pg16-bookworm
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
       POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
@@ -28,11 +28,16 @@ services:
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
       CHUNK_SIZE: ${CHUNK_SIZE:-1200}
       CHUNK_OVERLAP: ${CHUNK_OVERLAP:-200}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-intfloat/multilingual-e5-small}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-384}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-16}
+      HF_HOME: /app/.cache/huggingface
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
       - document_storage:/app/storage
+      - model_cache:/app/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,3 +51,4 @@ services:
 volumes:
   postgres_data:
   document_storage:
+  model_cache:

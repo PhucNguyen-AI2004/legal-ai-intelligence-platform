@@ -20,3 +20,5 @@ dist/
 Thumbs.db
 storage/*
 !storage/.gitkeep
+.cache/
+backups/

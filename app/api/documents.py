@@ -14,6 +14,9 @@ from app.services import documents
 from app.services.document_storage import DocumentStorage
 from app.services import document_processing
 from app.services.text_extraction import ProcessingError
+from app.services.embeddings import EmbeddingBackend, EmbeddingError, get_embedding_service
+from app.services.document_indexing import index_document as run_index_document
+from app.schemas.search import DocumentIndexResult
 
 router = APIRouter(prefix="/documents", tags=["documents"], route_class=DocumentRoute)
 
@@ -41,6 +44,21 @@ def upload_document(
         raise HTTPException(503, "Document storage operation failed") from None
     finally:
         file.file.close()
+
+
+@router.post("/{document_id}/index", response_model=DocumentIndexResult)
+def index_document(
+    document_id: UUID, user: CurrentUser, db: DbSession,
+    backend: Annotated[EmbeddingBackend, Depends(get_embedding_service)],
+) -> DocumentIndexResult:
+    try:
+        count = run_index_document(document_id, user.id, db, backend)
+        return DocumentIndexResult(document_id=document_id, embedded_chunks=count, model_name=backend.model_name)
+    except EmbeddingError as exc:
+        raise HTTPException(503, str(exc)) from None
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(503, "Embedding database operation failed") from None
 
 
 @router.get("", response_model=DocumentList)

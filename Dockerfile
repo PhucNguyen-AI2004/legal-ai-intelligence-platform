@@ -7,10 +7,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY requirements.txt .
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu "torch>=2.6,<3.0"
 RUN pip install --no-cache-dir -r requirements.txt
 
 RUN groupadd --system app && useradd --system --gid app app
 RUN mkdir -p /app/storage/documents && chown -R app:app /app/storage
+RUN mkdir -p /app/.cache/huggingface && chown -R app:app /app/.cache
 COPY --chown=app:app app ./app
 COPY --chown=app:app alembic ./alembic
 COPY --chown=app:app alembic.ini .

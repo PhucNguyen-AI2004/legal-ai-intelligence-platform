@@ -1,7 +1,7 @@
 # Dedicated, disposable PostgreSQL; no application database volumes or host ports.
 services:
   postgres-test:
-    image: postgres:16-bookworm
+    image: pgvector/pgvector:pg16-bookworm
     environment:
       POSTGRES_DB: legal_ai_test
       POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}

@@ -10,3 +10,5 @@ venv
 .idea
 README.md
 storage
+.cache
+backups

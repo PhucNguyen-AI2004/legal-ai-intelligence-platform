@@ -17,6 +17,9 @@ class DocumentRead(BaseModel):
     description: str | None
     status: str
     processing_error: str | None
+    embedding_status: str
+    embedding_error: str | None
+    embedded_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

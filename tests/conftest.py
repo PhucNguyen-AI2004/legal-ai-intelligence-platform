@@ -5,7 +5,10 @@ removes its own schema; application tables outside that schema are untouched.
 """
 import os
 import secrets
+import json
+import math
 from uuid import uuid4
+from app.core.embedding_config import EMBEDDING_MODEL, VECTOR_DIMENSION
 
 # Set isolated configuration before importing application modules; never use .env secrets.
 os.environ["APP_ENV"] = "test"
@@ -15,6 +18,11 @@ os.environ["ALGORITHM"] = "HS256"
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
 os.environ["CHUNK_SIZE"] = "1200"
 os.environ["CHUNK_OVERLAP"] = "200"
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["EMBEDDING_MODEL_NAME"] = EMBEDDING_MODEL
+os.environ["EMBEDDING_DIMENSION"] = str(VECTOR_DIMENSION)
+os.environ["EMBEDDING_BATCH_SIZE"] = "16"
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://localhost:1/legal_ai_test"
 )
@@ -27,10 +35,28 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 from sqlalchemy.schema import CreateSchema, DropSchema
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql.elements import BinaryExpression
 
 from app import main
 from app.core.config import PROJECT_ROOT, get_settings
 from app.db.session import get_db
+from app.core.embedding_config import EMBEDDING_MODEL, VECTOR_DIMENSION
+from app.services.embeddings import EmbeddingService, get_embedding_service
+
+
+# Test-only emulation. Production compiles <=> and runs cosine in PostgreSQL.
+@compiles(BinaryExpression, "sqlite")
+def compile_test_cosine(element, compiler, **kwargs):
+    if getattr(element.operator, "opstring", None) == "<=>":
+        return f"test_cosine_distance({compiler.process(element.left, **kwargs)}, {compiler.process(element.right, **kwargs)})"
+    return compiler.visit_binary(element, **kwargs)
+
+
+def test_cosine_distance(left, right):
+    a, b = json.loads(left), json.loads(right)
+    denominator = math.sqrt(sum(x*x for x in a) * sum(x*x for x in b))
+    return 1 - sum(x*y for x,y in zip(a,b,strict=True)) / denominator
 
 
 @pytest.fixture(scope="session")
@@ -46,13 +72,14 @@ def db_engine(tmp_path_factory):
         admin_engine = create_engine(url)
         with admin_engine.begin() as connection:
             connection.execute(CreateSchema(schema))
-        engine = create_engine(url, connect_args={"options": f"-csearch_path={schema}"})
+        engine = create_engine(url, connect_args={"options": f"-csearch_path={schema},public"})
     else:
         path = tmp_path_factory.mktemp("auth") / "auth.db"
         engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
         @event.listens_for(engine, "connect")
         def enable_foreign_keys(connection, record):
             connection.execute("PRAGMA foreign_keys=ON")
+            connection.create_function("test_cosine_distance", 2, test_cosine_distance)
 
     try:
         # Exercise the actual migration, never Base.metadata.create_all().
@@ -97,17 +124,59 @@ def document_storage(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def client(db_session, db_engine, monkeypatch, document_storage):
+def client(db_session, db_engine, monkeypatch, document_storage, fake_embeddings):
     def override_get_db():
         yield db_session
 
     main.app.dependency_overrides[get_db] = override_get_db
+    main.app.dependency_overrides[get_embedding_service] = lambda: fake_embeddings
     monkeypatch.setattr(main, "engine", db_engine)
     try:
         with TestClient(main.app) as test_client:
             yield test_client
     finally:
         main.app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def forbid_real_model_download(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Tests must inject a fake model instead of downloading weights")
+    monkeypatch.setattr(EmbeddingService, "_build_model", forbidden)
+
+
+@pytest.fixture
+def fake_embeddings():
+    class FakeEmbeddingService:
+        model_name = EMBEDDING_MODEL
+        dimension = VECTOR_DIMENSION
+
+        def __init__(self):
+            self.document_calls = []
+            self.query_calls = []
+
+        def vector(self, text):
+            values = [0.0] * self.dimension
+            text = text.lower()
+            if "mixed" in text:
+                values[0], values[1] = 0.8, 0.6
+            elif "access" in text:
+                values[0] = 1.0
+            elif "tax" in text:
+                values[1] = 1.0
+            else:
+                values[2] = 1.0
+            return values
+
+        def embed_documents(self, texts):
+            self.document_calls.append(list(texts))
+            return [self.vector(text) for text in texts]
+
+        def embed_query(self, query):
+            self.query_calls.append(query)
+            return self.vector(query)
+
+    return FakeEmbeddingService()
 
 
 @pytest.fixture
