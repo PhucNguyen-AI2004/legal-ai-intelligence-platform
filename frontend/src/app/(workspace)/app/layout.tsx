@@ -1,5 +1,6 @@
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
+import { ProtectedRoute } from "@/components/auth/auth-guards";
 
 export default function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <WorkspaceShell>{children}</WorkspaceShell>;
+  return <ProtectedRoute><WorkspaceShell>{children}</WorkspaceShell></ProtectedRoute>;
 }

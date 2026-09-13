@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.health import router as health_router
@@ -32,7 +33,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await run_in_threadpool(engine.dispose)
 
 
-app = FastAPI(title=get_settings().app_name, lifespan=lifespan)
+settings = get_settings()
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[str(settings.frontend_origin).rstrip("/")],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(documents_router)

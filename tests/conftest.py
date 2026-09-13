@@ -12,6 +12,7 @@ from app.core.embedding_config import EMBEDDING_MODEL, VECTOR_DIMENSION
 
 # Set isolated configuration before importing application modules; never use .env secrets.
 os.environ["APP_ENV"] = "test"
+os.environ["FRONTEND_ORIGIN"] = "http://localhost:3000"
 os.environ["APP_NAME"] = "Legal AI Auth Tests"
 os.environ["SECRET_KEY"] = secrets.token_urlsafe(48)
 os.environ["ALGORITHM"] = "HS256"

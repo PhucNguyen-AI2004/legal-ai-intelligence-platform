@@ -6,8 +6,6 @@ export const MOCK_CONVERSATIONS = [
   { label: "7 ngày trước", items: ["Điều kiện chấm dứt hợp đồng"] },
 ];
 
-export const MOCK_PROFILE = { initials: "NA", name: "Người dùng mẫu", label: "Dữ liệu giao diện tạm" };
-
 export const MOCK_SUGGESTED_PROMPTS = [
   "Tóm tắt quyền và nghĩa vụ của các bên", "Tìm điều khoản về bảo mật",
   "Điều kiện chấm dứt hợp đồng", "So sánh trách nhiệm của các bên",

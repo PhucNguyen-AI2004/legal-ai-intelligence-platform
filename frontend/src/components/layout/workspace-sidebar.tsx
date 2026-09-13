@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { Brand } from "@/components/navigation/brand";
 import { SidebarItem } from "@/components/navigation/sidebar-item";
 import { IconButton } from "@/components/ui/icon-button";
-import { MOCK_CONVERSATIONS, MOCK_PROFILE } from "@/lib/constants/mock-ui";
+import { MOCK_CONVERSATIONS } from "@/lib/constants/mock-ui";
+import { useAuth } from "@/components/auth/auth-provider";
 
 export function WorkspaceSidebar({ collapsed, mobileOpen, closeMobile }: {
   collapsed: boolean;
@@ -13,6 +14,9 @@ export function WorkspaceSidebar({ collapsed, mobileOpen, closeMobile }: {
   closeMobile: () => void;
 }) {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
+  const displayName = user?.full_name || user?.email || "";
+  const initial = displayName.charAt(0).toLocaleUpperCase("vi") || "?";
   return (
     <aside className={`workspace-sidebar${mobileOpen ? " mobile-open" : ""}`} aria-label="Điều hướng không gian làm việc">
       <div className="sidebar-top">
@@ -35,10 +39,10 @@ export function WorkspaceSidebar({ collapsed, mobileOpen, closeMobile }: {
         <SidebarItem href="/app/documents" icon={Files} label="Tài liệu" active={pathname.startsWith("/app/documents")} collapsed={collapsed} />
       </nav>
       <div className="sidebar-footer">
-        <div className="profile-summary" title={collapsed ? MOCK_PROFILE.name : undefined}><span>{MOCK_PROFILE.initials}</span>{!collapsed && <div><strong>{MOCK_PROFILE.name}</strong><small>{MOCK_PROFILE.label}</small></div>}</div>
+        <div className="profile-summary" title={collapsed ? displayName : undefined}><span>{initial}</span>{!collapsed && <div><strong>{user?.full_name}</strong><small>{user?.email}</small></div>}</div>
         <div className="footer-actions">
           <IconButton label="Cài đặt (sắp có)"><Settings size={18} /></IconButton>
-          <IconButton label="Đăng xuất (sắp có)"><LogOut size={18} /></IconButton>
+          <IconButton label="Đăng xuất" onClick={logout}><LogOut size={18} /></IconButton>
         </div>
       </div>
     </aside>

@@ -1339,8 +1339,33 @@ npm run typecheck
 npm run build
 ```
 
-Phase 8B can implement the `AuthBoundary`, connect the auth forms, and replace the
-temporary profile without spreading JWT handling through UI components.
+## Phase 8B: User authentication
+
+Phase 8B connects the existing login and registration screens to FastAPI. The
+frontend stores the access token through the single module
+`src/lib/auth/token-storage.ts`, validates sessions with `GET /auth/me`, protects
+all `/app/*` routes with a client-side guard, and clears the session on logout or
+an authenticated request returning 401. Public login failures remain local form
+errors and do not trigger the global expired-session handler.
+
+For local development, configure both origins:
+
+```dotenv
+# Root .env (backend)
+FRONTEND_ORIGIN=http://localhost:3000
+
+# frontend/.env.local
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+The Phase 8B token store uses `localStorage` because the backend currently issues
+only stateless access tokens. Passwords are never persisted. A later security phase
+may replace this with HttpOnly cookies and refresh-token rotation after the backend
+supports that flow.
+
+Manual auth flow: create an account at `/register`, follow the redirect to
+`/login?registered=1`, sign in, then refresh `/app/chat` to confirm `/auth/me`
+restores the profile. Use the sidebar logout button to clear the local session.
 
 ## Planned next phases
 

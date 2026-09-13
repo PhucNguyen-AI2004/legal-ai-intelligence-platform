@@ -21,6 +21,7 @@ services:
     environment:
       APP_NAME: ${APP_NAME:?Set APP_NAME in .env}
       APP_ENV: ${APP_ENV:?Set APP_ENV in .env}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
       SECRET_KEY: ${SECRET_KEY:?Generate SECRET_KEY in .env}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       ALGORITHM: ${ALGORITHM:-HS256}

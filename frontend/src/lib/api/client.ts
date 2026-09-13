@@ -1,3 +1,5 @@
+import { clearAccessToken, getAccessToken } from "@/lib/auth/token-storage";
+
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
 
 export interface ApiErrorBody {
@@ -13,7 +15,14 @@ export class ApiError extends Error {
 
 export interface ApiRequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
-  token?: string;
+  auth?: "none" | "optional" | "required";
+}
+
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler;
 }
 
 export function normalizeBaseUrl(value: string): string {
@@ -23,10 +32,11 @@ export function normalizeBaseUrl(value: string): string {
 export const apiBaseUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL);
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T | null> {
-  const { body, token, headers: customHeaders, ...requestOptions } = options;
+  const { body, auth = "optional", headers: customHeaders, ...requestOptions } = options;
   const headers = new Headers(customHeaders);
   headers.set("Accept", "application/json");
   if (body !== undefined) headers.set("Content-Type", "application/json");
+  const token = auth === "none" ? null : getAccessToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const response = await fetch(`${apiBaseUrl}/${path.replace(/^\/+/, "")}`, {
@@ -36,6 +46,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   });
   if (!response.ok) {
     const errorBody = await readJson<ApiErrorBody>(response);
+    if (response.status === 401 && auth !== "none") {
+      clearAccessToken();
+      unauthorizedHandler?.();
+    }
     throw new ApiError(response.status, errorBody);
   }
   if (response.status === 204) return null;

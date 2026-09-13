@@ -180,3 +180,17 @@ def test_health_and_swagger_contract(client):
     assert spec["paths"]["/auth/me"]["get"]["security"] == [{"HTTPBearer": []}]
     assert "application/json" in spec["paths"]["/auth/login"]["post"]["requestBody"]["content"]
     assert "password" not in spec["components"]["schemas"]["UserRead"]["properties"]
+
+
+def test_frontend_origin_is_allowed_by_cors(client):
+    response = client.options(
+        "/auth/register",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert "content-type" in response.headers["access-control-allow-headers"].lower()
