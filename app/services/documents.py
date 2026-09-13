@@ -55,7 +55,7 @@ def list_documents(db: Session, owner_id: UUID, skip: int, limit: int) -> tuple[
 def get_document(db: Session, document_id: UUID, owner_id: UUID, *, lock: bool = False) -> Document:
     query = select(Document).where(Document.id == document_id, Document.owner_id == owner_id)
     if lock:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     document = db.scalar(query)
     if document is None:
         raise HTTPException(404, "Document not found")
@@ -64,6 +64,8 @@ def get_document(db: Session, document_id: UUID, owner_id: UUID, *, lock: bool =
 
 def delete_document(db: Session, document_id: UUID, owner_id: UUID, storage: DocumentStorage) -> None:
     document = get_document(db, document_id, owner_id, lock=True)
+    if document.status == "processing":
+        raise HTTPException(409, "Cannot delete a document while it is processing")
     key = document.stored_filename
     staged_key = storage.stage_delete(key)
     try:

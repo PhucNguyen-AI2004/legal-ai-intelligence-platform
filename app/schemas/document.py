@@ -16,6 +16,7 @@ class DocumentRead(BaseModel):
     title: str
     description: str | None
     status: str
+    processing_error: str | None
     created_at: datetime
     updated_at: datetime
 

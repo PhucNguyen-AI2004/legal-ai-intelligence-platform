@@ -9,8 +9,11 @@ from app.api.document_route import DocumentRoute
 from app.core.config import get_settings
 from app.models.document import Document
 from app.schemas.document import DocumentList, DocumentRead
+from app.schemas.document_chunk import DocumentChunkList, DocumentChunkRead, DocumentProcessResult
 from app.services import documents
 from app.services.document_storage import DocumentStorage
+from app.services import document_processing
+from app.services.text_extraction import ProcessingError
 
 router = APIRouter(prefix="/documents", tags=["documents"], route_class=DocumentRoute)
 
@@ -76,3 +79,34 @@ def delete_document(document_id: UUID, user: CurrentUser, db: DbSession, storage
         db.rollback()
         raise HTTPException(503, "Document storage operation failed") from None
     return Response(status_code=204)
+
+
+@router.post("/{document_id}/process", response_model=DocumentProcessResult)
+def process_document(document_id: UUID, user: CurrentUser, db: DbSession, storage: Storage) -> DocumentProcessResult:
+    try:
+        count = document_processing.process_document(document_id, user.id, db, storage, get_settings())
+        return DocumentProcessResult(document_id=document_id, chunk_count=count)
+    except ProcessingError as exc:
+        raise HTTPException(exc.status_code, exc.message) from None
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(503, "Document database operation failed") from None
+
+
+@router.get("/{document_id}/chunks", response_model=DocumentChunkList)
+def get_chunks(
+    document_id: UUID, user: CurrentUser, db: DbSession, response: Response,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> DocumentChunkList:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        status, chunks, total = document_processing.list_chunks(db, document_id, user.id, skip, limit)
+        return DocumentChunkList(
+            document_id=document_id, status=status,
+            items=[DocumentChunkRead.model_validate(chunk) for chunk in chunks],
+            total=total, skip=skip, limit=limit,
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(503, "Document database operation failed") from None

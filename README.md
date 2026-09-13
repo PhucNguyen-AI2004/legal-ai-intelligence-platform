@@ -4,15 +4,16 @@
 
 Dự án portfolio hướng tới vị trí Fresher/Junior AI Engineer hoặc Data Engineer.
 Mục tiêu dài hạn là xử lý tài liệu pháp luật và trả lời câu hỏi có dẫn nguồn.
-**Phase 3 bổ sung quản lý tài liệu pháp luật theo từng user** trên nền backend
-và authentication hiện có; chưa trích xuất hoặc trả lời nội dung pháp luật.
+**Phase 4 bổ sung document processing pipeline**: extract text → normalize →
+chunk → lưu PostgreSQL, trên nền backend/auth/documents hiện có.
 
 ## Current phase
 
 Đã có FastAPI, cấu hình môi trường, SQLAlchemy, PostgreSQL, Alembic, Docker,
 bảng users, đăng ký, đăng nhập bằng JWT, upload/lưu metadata, list/detail/delete
-tài liệu thuộc user hiện tại. Phase 1/2 đã được người dùng xác nhận test thực tế.
-Chưa có OCR, chunking, LLM, RAG, embedding, vector database, frontend, social login,
+tài liệu thuộc user hiện tại, xử lý tài liệu và xem chunks. Phase 1–3 đã được
+người dùng xác nhận test thực tế.
+Chưa có OCR, LLM, RAG, embedding, vector database, frontend, social login,
 refresh token, email verification, forgot password hoặc role/permission phức tạp.
 Đây là nền tảng có cấu trúc để mở rộng; chưa phải bản triển
 khai production hoàn chỉnh (chưa có TLS, secrets manager, backup hay monitoring).
@@ -32,6 +33,7 @@ khai production hoàn chỉnh (chưa có TLS, secrets manager, backup hay monito
 | PyJWT (HS256) | Ký và verify access token |
 | pytest + HTTPX | Test auth, validation, migration và OpenAPI |
 | python-multipart | Nhận file và text fields trong multipart/form-data |
+| python-docx + pypdf | Extract paragraphs DOCX và text từng page PDF, không OCR |
 | Docker + Docker Compose v2 | Đóng gói backend và chạy cùng database |
 
 `requirements.txt` dùng khoảng phiên bản tương thích để dễ học. Chưa có lockfile
@@ -51,6 +53,7 @@ GET /auth/me -> HTTPBearer -> get_current_user -> verify JWT -> users
 Auth endpoints -> Depends(get_db) -> Session -> Engine -> PostgreSQL
 Document endpoints -> current user -> document service -> PostgreSQL metadata
                                                        -> local document storage
+POST /documents/{id}/process -> extract -> normalize -> chunk -> PostgreSQL chunks
 Alembic -----------------------------------------------> PostgreSQL schema
 ```
 
@@ -106,27 +109,36 @@ app/
     __init__.py
     user.py
     document.py
+    document_chunk.py
   schemas/
     __init__.py
     user.py
     token.py
     document.py
+    document_chunk.py
   services/
     __init__.py
     auth.py
     documents.py
     document_storage.py
+    document_processing.py
+    text_extraction.py
+    text_normalization.py
+    text_chunking.py
 alembic/
   env.py
   script.py.mako
   versions/0001_create_users.py
   versions/0002_create_documents.py
+  versions/0003_document_processing.py
 tests/
   conftest.py
   test_auth.py
   test_security.py
   test_migrations.py
   test_documents.py
+  test_text_processing.py
+  test_document_processing.py
 storage/
   .gitkeep
   documents/           # Upload local, bị Git ignore
@@ -199,9 +211,9 @@ docker compose exec backend alembic upgrade head
 docker compose exec backend alembic current
 ```
 
-Phase 3 có head `0002_create_documents`; `current` phải hiển thị revision này.
-Upgrade từ Phase 2 giữ bảng users và thêm bảng documents. Database mới chạy cả
-hai migration theo thứ tự. Chạy `docker compose exec backend alembic check`
+Phase 4 có head `0003_document_processing`; `current` phải hiển thị revision này.
+Upgrade giữ users/documents và thêm processing_error/document_chunks. Database
+mới chạy cả ba migration theo thứ tự. Chạy `docker compose exec backend alembic check`
 để kiểm tra model/schema có đồng bộ không.
 Migration không tự chạy trong Dockerfile hoặc khi start API.
 
@@ -344,11 +356,13 @@ Swagger Logout chỉ xóa token khỏi giao diện, không thu hồi token phía
 | `status` | VARCHAR(32), mặc định uploaded |
 | `created_at`, `updated_at` | Timestamp có timezone; cùng quy tắc SQLAlchemy như User |
 
-Status dùng chuỗi để sau này thêm processing/processed/failed không phải thay
-PostgreSQL enum. Phase này chỉ tạo `uploaded`; chưa có endpoint đổi status.
+Status dùng chuỗi để mở rộng không phải thay PostgreSQL enum. Upload tạo
+`uploaded`; endpoint process của Phase 4 chuyển processing/processed/failed.
 Index `(owner_id, created_at, id)` hỗ trợ lọc theo owner và phân trang theo thời gian.
 FK dùng `ON DELETE RESTRICT`: không tự cascade metadata khi file vẫn còn trên disk.
 Chưa có chức năng xóa user; nếu bổ sung cần xử lý tài liệu trước.
+Từ Phase 4, DocumentRead có thêm `processing_error` nullable; chỉ chứa thông báo
+an toàn, không chứa traceback hoặc đường dẫn nội bộ.
 
 Tất cả endpoint sau yêu cầu Bearer token:
 
@@ -455,6 +469,164 @@ không gửi JSON body cho endpoint upload. FastAPI dùng UploadFile để spool
 vì đọc toàn bộ thành bytes trong endpoint. Tham khảo
 [FastAPI Forms and Files](https://fastapi.tiangolo.com/tutorial/request-forms-and-files/).
 
+## Phase 4: Document processing pipeline
+
+```text
+Upload
+  ↓ (owner gọi POST /documents/{id}/process)
+Extract
+  ↓
+Normalize
+  ↓
+Chunk
+  ↓
+PostgreSQL
+```
+
+Upload không tự process. Endpoint process chạy đồng bộ trong thread pool và trả
+kết quả sau khi xử lý xong; chưa có queue, background worker hoặc scheduler.
+Logic nằm trong services; endpoint chỉ làm xác thực, gọi service và trả response.
+
+### Extraction architecture
+
+`extract_text(file_path, file_type)` dispatch theo loại file; đường dẫn được lấy
+từ storage key an toàn của document, không nhận path từ client.
+
+| Type | Cách extract | Giới hạn |
+| --- | --- | --- |
+| TXT | Đọc utf-8-sig để hỗ trợ UTF-8/BOM | Decode lỗi → failed |
+| DOCX | python-docx, đọc document.paragraphs theo thứ tự | Chưa lấy tables, headers, footers, textboxes hoặc tracked changes |
+| PDF | pypdf, extract_text theo thứ tự page, nối bằng dòng trống | Không OCR; PDF encrypted bị từ chối; reading order/layout có thể không chính xác |
+
+PDF scan thường chỉ chứa ảnh; nếu không có text layer thì parser không có ký tự
+để lấy và xử lý sẽ failed. PDF scan có text layer từ OCR trước đó vẫn có thể
+extract được. Đây là giới hạn của extraction, không phải lỗi authentication.
+Tham khảo [pypdf text extraction](https://pypdf.readthedocs.io/en/stable/user/extract-text.html)
+và [python-docx paragraphs](https://python-docx.readthedocs.io/en/latest/api/document.html).
+
+Guardrails hiện tại: tối đa khoảng 5 triệu ký tự extracted; DOCX khai báo tổng
+dung lượng uncompressed tối đa 50 MiB. Đây không phải giới hạn cứng RAM/CPU của
+parser: PDF nén hoặc tài liệu phức tạp vẫn có thể dùng nhiều tài nguyên. Trước
+khi xử lý file không tin cậy ở quy mô production cần worker có giới hạn tài
+nguyên và timeout; Phase 4 chưa triển khai worker. Không lưu page offsets hoặc
+source-span của chunks, nên chưa đủ dữ liệu để tạo citation chính xác theo page.
+
+### Normalization logic
+
+Chuẩn hóa Unicode NFC, newline CRLF/CR/Unicode line separator, bỏ BOM đầu văn bản,
+gom khoảng trắng ngang, trim từng dòng và giữ tối đa một dòng trống giữa paragraphs.
+Loại NUL vì PostgreSQL TEXT không chứa được ký tự này. Giữ chữ hoa/thường, dấu câu,
+Unicode tiếng Việt và số điều/khoản; không tự nối dòng hay sửa từ bị ngắt trong PDF.
+
+Ví dụ `Điều 1.   Phạm vi   điều chỉnh` → `Điều 1. Phạm vi điều chỉnh`.
+Normalize trước chunking giúp khoảng trắng dư không tiêu tốn chunk budget và
+giúp boundary/char_count ổn định. Không coi normalization là sửa lỗi ngữ nghĩa.
+
+### Chunking strategy và config
+
+| Biến | Mặc định | Validation |
+| --- | --- | --- |
+| CHUNK_SIZE | 1200 ký tự | 100–20000 |
+| CHUNK_OVERLAP | 200 ký tự | 0 <= overlap < size |
+
+Service chọn điểm kết thúc tại paragraph boundary cuối cùng trong chunk budget,
+gom nhiều paragraph nếu vừa. Với paragraph dài, ưu tiên newline, rồi khoảng trắng;
+chỉ hard-split nếu không có boundary phù hợp. Chunk tiếp theo bắt đầu trước cuối
+chunk trước một khoảng overlap. Mỗi vòng phải tiến vào text mới, không lặp vô hạn.
+Trim whitespace có thể làm overlap hiển thị ngắn hơn cấu hình một chút.
+
+Paragraph boundaries giúp giữ các câu liên quan cùng nhau tốt hơn cắt mù theo
+ký tự. Overlap giữ một phần ngữ cảnh quanh ranh giới cho retrieval ở phase sau;
+đổi lại làm tăng lượng text lưu và tính toán. Overlap gần bằng size tạo rất nhiều
+chunks, nên giữ mặc định hoặc tỷ lệ nhỏ. Không đảm bảo toàn bộ Điều/Khoản nằm
+trọn trong một chunk, nhất là paragraph quá dài.
+
+Chunks không rỗng, chunk_index bắt đầu từ 0, liên tục; chunk cuối luôn được giữ.
+`char_count = len(content)` tính Unicode code points, không phải byte UTF-8.
+`token_estimate = ceil(char_count / 4)` chỉ là heuristic, có thể lệch đáng kể với
+tiếng Việt và từng tokenizer; chưa có tokenizer LLM hay embedding.
+
+### Database design
+
+`documents` thêm `processing_error VARCHAR(500) NULL`.
+`document_chunks` gồm UUID id/document_id, chunk_index, content TEXT, char_count,
+token_estimate và created_at có timezone. Unique `(document_id, chunk_index)`
+đồng thời tạo index hỗ trợ truy vấn theo document và thứ tự chunk; không cần
+thêm index trùng lặp. CHECK constraints yêu cầu index không âm, counts dương.
+FK `ON DELETE CASCADE` xóa chunks khi document bị xóa.
+
+Lưu chunks trong database giúp đọc lại mà không phải parse file mỗi request,
+giữ thứ tự rõ ràng và chuẩn bị dữ liệu cho phase sau. Đây là bảng quan hệ bình
+thường, không phải vector database. Migration không thay đổi hoặc xóa migration cũ.
+
+### Processing transaction và status flow
+
+```text
+uploaded / processed / failed
+              ↓
+          processing
+           ↙      ↘
+     processed    failed
+```
+
+1. Lấy document theo id + owner_id, khóa row PostgreSQL. Nếu đang processing → 409.
+2. Ghi processing, xóa processing_error cũ và commit để request khác nhìn thấy trạng thái.
+3. Extract → normalize → kiểm tra text không rỗng → chunk, không giữ row lock lâu khi parse.
+4. Transaction tiếp theo khóa document, DELETE chunks cũ, INSERT toàn bộ chunks mới,
+   chuyển processed và commit một lần.
+5. Nếu bước 3/4 lỗi: rollback transaction thay chunks, ghi failed + lỗi an toàn
+   trong transaction riêng. Không để bộ chunks chỉ được insert một phần.
+
+Reprocess thành công thay toàn bộ chunks cũ, không append hoặc duplicate.
+Nếu reprocess thất bại, bộ chunks hoàn chỉnh từ lần trước được giữ lại; GET chunks
+trả status failed để client biết đó không phải kết quả của lần xử lý mới nhất.
+Lần xử lý đầu thất bại không có chunks. Status thể hiện trạng thái xử lý dữ liệu,
+không phải trạng thái upload HTTP hoặc task queue.
+
+DELETE document bị chặn 409 khi processing, tránh xóa file trong lúc parser đọc.
+Process đồng thời cũng trả 409 sau khi thấy claim của request trước. File nguyên
+gốc được giữ nguyên. Nếu process crash sau claim, trạng thái có thể kẹt processing;
+chưa có tự động timeout/recovery. Operator cần xác nhận không còn request đang
+chạy trước khi reset về failed bằng thao tác quản trị có kiểm soát. Không reset
+chỉ vì request client timeout, vì server có thể vẫn đang xử lý.
+
+Nếu database mất kết nối, việc ghi failed cũng có thể thất bại; API trả 503 nhưng
+không đảm bảo status đã được lưu. Không thể bảo đảm transaction thành công khi
+database không khả dụng hoặc mất acknowledgment của commit.
+
+### Processing endpoints và Swagger
+
+| Endpoint | Response |
+| --- | --- |
+| POST /documents/{document_id}/process | 200: document_id, status=processed, chunk_count, message |
+| GET /documents/{document_id}/chunks?skip=0&limit=20 | 200: document_id, status, items, total, skip, limit |
+
+Hai endpoint yêu cầu Bearer token và chỉ owner truy cập; thiếu token → 401,
+không tồn tại/khác owner → 404. Chunks sắp theo chunk_index tăng dần; pagination
+giống document list. Mỗi item gồm id, chunk_index, content, char_count,
+token_estimate, created_at; không có file path. Chưa process thì items rỗng.
+Count và list là hai query ở isolation mặc định; reprocess đồng thời có thể làm
+thay đổi kết quả giữa hai query/trang.
+
+Test trong Swagger:
+
+1. Rebuild backend, chạy upgrade head; login và Authorize ở `/docs`.
+2. Upload TXT có nội dung pháp luật hoặc PDF/DOCX thật, copy document id.
+3. Gọi POST process (không có body), kiểm tra status processed/chunk_count.
+4. Gọi GET chunks để xem thứ tự/content/counts, thử skip/limit.
+5. Gọi process lần nữa; chunks được thay thế, không cộng dồn.
+6. Upload PDF không có text, process → 422; GET document thấy failed và processing_error.
+7. Dùng token user B process/get chunks của A → 404; bỏ token → 401.
+
+Lỗi trả JSON `detail` an toàn: 409 file đã mất hoặc đang processing; 415 loại
+không hỗ trợ; 422 file không parse được/không có text/UTF-8 sai; 503 storage hoặc
+database không khả dụng; 500 lỗi processing bất ngờ. Status failed được lưu khi
+có thể ghi database; không lưu hoặc trả exception text/traceback của parser.
+
+Các file giả chỉ có `%PDF-` hay ZIP tối giản trong test upload Phase 3 không phải
+tài liệu hợp lệ để test extraction. Test Phase 4 tạo DOCX thật và PDF có text bằng
+thư viện, cùng PDF blank để kiểm tra nhánh không có extractable text.
+
 ## Kiểm tra và migration
 
 ```powershell
@@ -502,6 +674,24 @@ rollback khi DB lỗi và Swagger multipart. Test dùng storage tạm riêng t�
 không ghi file vào storage của ứng dụng. Migration test kiểm tra cả dữ liệu User
 cũ được giữ sau upgrade Phase 3. SQLite bật foreign keys để test quan hệ.
 
+Test Phase 4 thêm extraction TXT/BOM, DOCX paragraphs, PDF pages/no-text,
+normalization Unicode/newlines, paragraph chunks/overlap/index/last chunk,
+process/reprocess, rollback khi insert dở, failed status, ownership, cascade,
+claim conflict và OpenAPI của endpoints mới.
+
+Chạy riêng Phase 4 sau khi cài requirements-dev:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_text_processing.py tests/test_document_processing.py tests/test_migrations.py -q
+```
+
+Chạy toàn bộ regression trên PostgreSQL test riêng:
+
+```powershell
+docker compose -p legal-ai-phase4-tests -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test
+docker compose -p legal-ai-phase4-tests -f docker-compose.test.yml down
+```
+
 Khi thêm model: kế thừa Base, export model trong `app/models/__init__.py`, chạy
 `alembic revision --autogenerate -m "describe change"`, review migration rồi mới
 `alembic upgrade head`. Chạy tạo revision local để file nằm trong repository.
@@ -510,24 +700,24 @@ Alembic lưu lịch sử schema trong source control và database, giúp các m�
 cùng có schema tương ứng với code. Review script trước khi chạy; autogenerate
 không hiểu mọi ý định thay đổi dữ liệu. Migration không tự chạy khi API startup.
 
-### Trạng thái kiểm chứng Phase 3
+### Trạng thái kiểm chứng Phase 4
 
-- Đã kiểm tra trực tiếp bằng Python 3.13/thư viện có sẵn: cú pháp tương thích
-  Python 3.12, ORM relationships, PostgreSQL DDL, schema không lộ file_path;
-  storage save/stage/restore/delete; PDF/DOCX/TXT, các lỗi validation và cleanup.
-- Đã kiểm tra multipart HTTP qua app nhỏ dùng DocumentRoute/storage thật:
-  upload hợp lệ, quá file limit, quá request stream khi không có Content-Length.
-  Đây không phải kiểm thử toàn bộ app/auth/database.
-- Đã kiểm tra service thật trên SQLite tạm: lưu metadata, owner-only list/detail/
-  delete, xử lý file đã mất, cleanup upload và restore file khi giả lập commit lỗi.
-  Schema smoke test được tạo từ model DDL, không xác nhận migration Alembic.
+- Đã kiểm tra bằng Python 3.13/thư viện có sẵn: TXT UTF-8/BOM, normalization,
+  chunking với nhiều tổ hợp size/overlap, paragraph/word boundaries, chunk index,
+  chunk cuối và overlap. Đã kiểm tra cú pháp tương thích Python 3.12.
+- Đã chạy pipeline service thật trên SQLite tạm: process, reprocess thay chunks,
+  rollback sau khi insert một phần, failed status an toàn, giữ chunks cũ nguyên
+  vẹn, ownership 404, processing conflict 409 và cascade khi xóa document.
+  Schema smoke test tạo từ model DDL, không xác nhận migration Alembic.
 - Cả Compose app và test đạt `config --quiet` (exit 0), dù có cảnh báo quyền đọc
   Docker config cá nhân. Không đồng nghĩa Docker build/start đã thành công.
-- Venv hiện thiếu dependency; sandbox không truy cập Docker daemon. Quyền tải
-  dependency và chạy Docker test đã bị từ chối. Chưa chạy pytest đầy đủ, migration
-  PostgreSQL thực tế, image Python 3.12 hoặc Swagger của toàn bộ ứng dụng Phase 3.
-- Phase 1/2 đã được người dùng xác nhận test thực tế; bộ test regression được giữ
-  và cập nhật head migration, nhưng chưa chạy lại trong phiên Phase 3 này.
+- Venv hiện thiếu dependency; pypdf/python-docx cũng chưa có trong Python global.
+  Sandbox không truy cập Docker daemon. Quyền tải dependency và chạy Docker test
+  đã bị từ chối. Chưa chạy extraction PDF/DOCX thật, pytest đầy đủ, migration
+  PostgreSQL, image Python 3.12 hoặc Swagger toàn ứng dụng Phase 4.
+- Phase 1–3 đã được người dùng xác nhận test thực tế. Test regression được giữ và
+  cập nhật head migration; chưa chạy lại toàn bộ trong phiên này. `.env` vẫn được
+  Git ignore và không commit.
 
 ## Security notes
 
@@ -544,10 +734,10 @@ không hiểu mọi ý định thay đổi dữ liệu. Migration không tự ch
 
 ## Planned next phases
 
-Phase 1 (backend foundation), Phase 2 (User/Auth) và Phase 3 (Documents) đã có mã nguồn.
-Các bước dự kiến sau: trích xuất/chunking; embedding
+Phase 1 (backend), Phase 2 (User/Auth), Phase 3 (Documents) và Phase 4 (Processing)
+đã có mã nguồn. Các bước dự kiến sau: embedding
 và retrieval; RAG/citation/hội thoại; deploy, monitoring và hardening.
-Chưa triển khai Phase 4 hoặc các tính năng AI.
+Chưa triển khai Phase 5, embedding, vector database, RAG hoặc LLM.
 
 ## Troubleshooting
 
@@ -567,13 +757,20 @@ Chưa triển khai Phase 4 hoặc các tính năng AI.
 | ModuleNotFoundError | Cài requirements trong đúng Python/venv hoặc rebuild image |
 | Test PostgreSQL từ chối URL | Dùng database test có tên kết thúc bằng `_test` |
 | Model mới không được autogenerate | Import model vào Alembic env trước khi so sánh metadata |
-| relation documents does not exist | Chạy upgrade head; revision phải là 0002_create_documents |
+| relation documents/document_chunks does not exist | Chạy upgrade head; revision phải là 0003_document_processing |
 | Upload 413 | Giảm file size hoặc chỉnh MAX_UPLOAD_SIZE_MB rồi restart/recreate backend |
 | Upload 415 | Kiểm tra extension/MIME; PDF header, DOCX container hoặc TXT UTF-8 |
 | Document 404 | ID không tồn tại, đã xóa hoặc thuộc user khác |
 | Document 503 | Kiểm tra DB/storage permissions và dung lượng disk; không log secrets |
 | Không thấy file khi chuyển Docker/local | Hai môi trường dùng storage khác nhau; xem mục Docker/persistence |
 | Metadata deleted; file cleanup pending | Đối chiếu DB với file .deleting trong storage, xử lý cleanup có kiểm soát |
+| Processing 422 với PDF scan | File không có text layer; chưa hỗ trợ OCR |
+| Extraction dependency unavailable | Rebuild image hoặc cài requirements có pypdf/python-docx |
+| Processing 409 vì thiếu file | Kiểm tra đúng storage volume; upload tài liệu lại nếu file đã mất |
+| Processing 409 / status bị kẹt | Xác nhận request cũ đã dừng trước khi operator reset trạng thái; chưa có tự động recovery |
+| Chunk config ValidationError | CHUNK_SIZE 100–20000, 0 <= CHUNK_OVERLAP < CHUNK_SIZE |
+| failed nhưng vẫn có chunks | Reprocess lỗi giữ bộ chunks hoàn chỉnh trước đó; kiểm tra status trước khi sử dụng |
+| Chunk count quá lớn / xử lý chậm | Giảm overlap, tăng chunk size hợp lý hoặc dùng file nhỏ hơn |
 
 Với database đã khởi tạo, đổi password bằng SQL có kiểm soát hoặc giữ cấu hình
 cũ. `docker compose down -v` sẽ **xóa dữ liệu volume**; chỉ dùng khi chủ động muốn

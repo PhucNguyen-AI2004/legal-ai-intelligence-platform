@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, SecretStr, field_validator
+from pydantic import Field, PostgresDsn, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     algorithm: Literal["HS256"] = "HS256"
     document_storage_path: Path = Path("storage/documents")
     max_upload_size_mb: int = Field(default=20, ge=1, le=100)
+    chunk_size: int = Field(default=1200, ge=100, le=20000)
+    chunk_overlap: int = Field(default=200, ge=0)
+
+    @model_validator(mode="after")
+    def validate_chunk_overlap(self) -> "Settings":
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError("CHUNK_OVERLAP must be smaller than CHUNK_SIZE")
+        return self
 
     @property
     def storage_directory(self) -> Path:

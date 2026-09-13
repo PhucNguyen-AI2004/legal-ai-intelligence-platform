@@ -9,6 +9,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.document_chunk import DocumentChunk
 
 
 class Document(Base):
@@ -33,8 +34,13 @@ class Document(Base):
     description: Mapped[str | None] = mapped_column(Text)
     # String rather than a PostgreSQL enum allows new pipeline states later.
     status: Mapped[str] = mapped_column(String(32), server_default="uploaded")
+    processing_error: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     owner: Mapped["User"] = relationship(back_populates="documents")
+    chunks: Mapped[list["DocumentChunk"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan", passive_deletes=True,
+        order_by="DocumentChunk.chunk_index",
+    )
