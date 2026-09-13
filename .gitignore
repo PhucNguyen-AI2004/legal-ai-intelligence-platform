@@ -6,6 +6,7 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+.pytest_tmp*/
 .ruff_cache/
 .mypy_cache/
 .coverage
@@ -22,3 +23,10 @@ storage/*
 !storage/.gitkeep
 .cache/
 backups/
+frontend/node_modules/
+frontend/.next/
+frontend/.next-phase8a-build/
+frontend/out/
+frontend/.env.local
+frontend/*.tsbuildinfo
+*.sql

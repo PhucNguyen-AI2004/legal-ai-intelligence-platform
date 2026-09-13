@@ -1,0 +1,7 @@
+node_modules/
+.next/
+.next-phase8a-build/
+out/
+.env*
+!.env.example
+*.tsbuildinfo

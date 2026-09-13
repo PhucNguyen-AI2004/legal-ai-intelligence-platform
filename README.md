@@ -1296,6 +1296,52 @@ docker compose -p legal-ai-phase7-tests -f docker-compose.test.yml up --build --
 docker compose -p legal-ai-phase7-tests -f docker-compose.test.yml down
 ```
 
+## Phase 8A: Frontend foundation
+
+Phase 8A adds a separate Next.js frontend in `frontend/`. It provides the visual
+foundation for authentication, chat, documents, and document detail screens. All
+conversation, profile, and document content shown in this phase is isolated mock UI
+data; forms and controls do not call the backend yet.
+
+Frontend stack: Next.js App Router, React, TypeScript strict mode, Tailwind CSS,
+ESLint, Inter, and `lucide-react`. Server Components remain the default. The client
+boundary is limited to the workspace shell and sidebar interactions.
+
+Routes prepared in Phase 8A:
+
+```text
+/                         -> redirects to /app/chat
+/login                    visual form only
+/register                 visual form only
+/app                      -> redirects to /app/chat
+/app/chat                 chat empty state and composer shell
+/app/documents            document table with temporary mock rows
+/app/documents/[id]       document detail placeholder
+```
+
+Create the safe public frontend configuration and run locally:
+
+```powershell
+Copy-Item frontend/.env.example frontend/.env.local
+cd frontend
+npm install
+npm run dev
+```
+
+Then open `http://localhost:3000`. Components use the central client in
+`src/lib/api/client.ts`; endpoint base URLs are not defined in page components.
+
+Validation commands:
+
+```powershell
+npm run lint
+npm run typecheck
+npm run build
+```
+
+Phase 8B can implement the `AuthBoundary`, connect the auth forms, and replace the
+temporary profile without spreading JWT handling through UI components.
+
 ## Planned next phases
 
 Phase 1–5 đã được người dùng xác nhận chạy thực tế. Phase 6 có single-turn RAG và
