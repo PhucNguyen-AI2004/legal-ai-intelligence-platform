@@ -1367,6 +1367,20 @@ Manual auth flow: create an account at `/register`, follow the redirect to
 `/login?registered=1`, sign in, then refresh `/app/chat` to confirm `/auth/me`
 restores the profile. Use the sidebar logout button to clear the local session.
 
+## Phase 8C: Document workspace
+
+Phase 8C replaces the frontend document mocks with the authenticated backend
+document APIs. `/app/documents` lists the current user's documents with `skip` and
+`limit` pagination, uploads one PDF/DOCX/TXT file up to 20 MB, and exposes process,
+index, view, and confirmed-delete actions according to backend state. The detail
+route loads document metadata and extracted chunks without exposing storage paths,
+owner controls, or vectors.
+
+The backend remains authoritative after every mutation: the frontend refetches the
+list or detail rather than publishing a local pipeline state. Document requests are
+centralized in `frontend/src/lib/documents/document-api.ts`; components never attach
+JWT headers directly.
+
 ## Planned next phases
 
 Phase 1–5 đã được người dùng xác nhận chạy thực tế. Phase 6 có single-turn RAG và

@@ -34,15 +34,16 @@ export const apiBaseUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T | null> {
   const { body, auth = "optional", headers: customHeaders, ...requestOptions } = options;
   const headers = new Headers(customHeaders);
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   headers.set("Accept", "application/json");
-  if (body !== undefined) headers.set("Content-Type", "application/json");
+  if (body !== undefined && !isFormData) headers.set("Content-Type", "application/json");
   const token = auth === "none" ? null : getAccessToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const response = await fetch(`${apiBaseUrl}/${path.replace(/^\/+/, "")}`, {
     ...requestOptions,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
   });
   if (!response.ok) {
     const errorBody = await readJson<ApiErrorBody>(response);
