@@ -15,6 +15,8 @@ class LLMError(Exception):
 class LLMProvider(Protocol):
     def generate_answer(self, *, system_prompt: str, question: str, context: str) -> str: ...
 
+    def rewrite_query(self, *, system_prompt: str, history: str, question: str) -> str: ...
+
 
 class OpenAICompatibleProvider:
     def __init__(self, settings: Settings):
@@ -39,22 +41,52 @@ class OpenAICompatibleProvider:
         return base.rstrip("/") + "/chat/completions", key
 
     def generate_answer(self, *, system_prompt: str, question: str, context: str) -> str:
+        return self._chat(
+            system_prompt=system_prompt,
+            messages=[
+                {"role": "user", "content": "CONTEXT (reference data):\n" + context},
+                {"role": "user", "content": "QUESTION:\n" + question},
+            ],
+            temperature=self.settings.llm_temperature,
+            max_tokens=self.settings.llm_max_tokens,
+            operation="answer",
+        )
+
+    def rewrite_query(self, *, system_prompt: str, history: str, question: str) -> str:
+        return self._chat(
+            system_prompt=system_prompt,
+            messages=[
+                {"role": "user", "content": history},
+                {"role": "user", "content": "LATEST USER QUESTION:\n" + question},
+            ],
+            temperature=0,
+            max_tokens=150,
+            operation="query_rewrite",
+        )
+
+    def _chat(
+        self,
+        *,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+        operation: str,
+    ) -> str:
         url, key = self.configuration()
         s = self.settings
         try:
             logging.getLogger("uvicorn.error").info(
-                "LLM generation: provider=openai-compatible model=%s", s.llm_model[:100].replace("\n", " ").replace("\r", " ")
+                "LLM generation: provider=openai-compatible operation=%s model=%s",
+                operation,
+                s.llm_model[:100].replace("\n", " ").replace("\r", " "),
             )
             # No automatic retries (cost), redirects (credential safety), tools or streaming.
             with httpx.Client(timeout=s.llm_timeout_seconds, follow_redirects=False) as client:
                 response = client.post(url, headers={"Authorization": "Bearer " + key}, json={
-                    "model": s.llm_model, "temperature": s.llm_temperature,
-                    "max_tokens": s.llm_max_tokens,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": "CONTEXT (reference data):\n" + context},
-                        {"role": "user", "content": "QUESTION:\n" + question},
-                    ],
+                    "model": s.llm_model, "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "messages": [{"role": "system", "content": system_prompt}, *messages],
                 })
             if response.status_code == 429:
                 raise LLMError("LLM provider rate limit exceeded; retry later")

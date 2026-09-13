@@ -17,6 +17,16 @@ logger = logging.getLogger("uvicorn.error")
 NO_CONTEXT = "Tôi chưa tìm thấy đủ thông tin trong các tài liệu đã được lập chỉ mục để trả lời câu hỏi này."
 
 
+def validated_citations(answer: str, sources: list) -> list | None:
+    # Backend metadata only; unsupported bracket formats do not count as citations.
+    references = [value for value in re.findall(r"\[([^\[\]\r\n]*)\]", answer)
+                  if re.search(r"\d", value)]
+    valid = {str(source.citation_number): source for source in sources}
+    if any(reference not in valid for reference in references):
+        return None
+    return [source for number, source in valid.items() if number in references]
+
+
 def ask_question(db: Session, owner_id: UUID, request: RAGRequest, embeddings: EmbeddingBackend,
                  provider: LLMProvider, settings: Settings) -> RAGResponse:
     started = monotonic()
@@ -35,15 +45,11 @@ def ask_question(db: Session, owner_id: UUID, request: RAGRequest, embeddings: E
         answer = provider.generate_answer(system_prompt=SYSTEM_PROMPT, question=request.question, context=context.text)
         if not isinstance(answer, str) or not answer.strip():
             raise LLMError("LLM provider returned an empty answer")
-        # Backend metadata only; unsupported bracket formats do not count as citations.
-        references = [value for value in re.findall(r"\[([^\[\]\r\n]*)\]", answer)
-                      if re.search(r"\d", value)]
-        valid = {str(source.citation_number): source for source in context.sources}
-        if any(reference not in valid for reference in references):
+        citations = validated_citations(answer, context.sources)
+        if citations is None:
             # Fail closed rather than retaining unsupported claims after deleting [99].
             return RAGResponse(answer=NO_CONTEXT, grounded=False, citations=[], model=settings.llm_model,
                                retrieved_chunks=len(chunks), used_chunks=len(context.sources))
-        citations = [source for number, source in valid.items() if number in references]
         return RAGResponse(answer=answer.strip(), grounded=bool(citations), citations=citations,
                            model=settings.llm_model, retrieved_chunks=len(chunks), used_chunks=len(context.sources))
     except Exception as exc:

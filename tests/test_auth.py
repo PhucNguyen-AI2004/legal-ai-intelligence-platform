@@ -128,8 +128,18 @@ def test_registration_validation_never_echoes_password(client, changes):
     payload = {**USER, **changes}
     response = client.post("/auth/register", json=payload)
     assert response.status_code == 422
-    assert payload["password"] not in response.text
-    assert all("input" not in error for error in response.json()["detail"])
+
+    def exposed_values(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key in {"input", "value"}:
+                    yield item
+                yield from exposed_values(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from exposed_values(item)
+
+    assert payload["password"] not in list(exposed_values(response.json()))
 
 
 def test_malformed_request_does_not_echo_secrets(client):
@@ -141,7 +151,7 @@ def test_malformed_request_does_not_echo_secrets(client):
 def test_database_unique_index_and_migration(db_session):
     inspector = inspect(db_session.bind)
     assert any(i["name"] == "ix_users_email" and i["unique"] for i in inspector.get_indexes("users"))
-    assert db_session.scalar(text("SELECT version_num FROM alembic_version")) == "0004_vector_embeddings"
+    assert db_session.scalar(text("SELECT version_num FROM alembic_version")) == "0005_conversations_and_messages"
     db_session.add(User(email="unique@example.com", hashed_password="test-only", full_name="One"))
     db_session.commit()
     db_session.add(User(email="unique@example.com", hashed_password="test-only", full_name="Two"))

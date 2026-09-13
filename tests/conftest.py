@@ -32,6 +32,7 @@ os.environ["LLM_MAX_TOKENS"] = "800"
 os.environ["LLM_TIMEOUT_SECONDS"] = "60"
 os.environ["RAG_MIN_SIMILARITY"] = "0.45"
 os.environ["RAG_MAX_CONTEXT_CHARS"] = "12000"
+os.environ["CHAT_HISTORY_MAX_MESSAGES"] = "6"
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://localhost:1/legal_ai_test"
 )

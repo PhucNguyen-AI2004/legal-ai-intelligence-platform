@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.conversation import Conversation
     from app.models.document import Document
 
 
@@ -28,4 +29,7 @@ class User(Base):
     # Do not cascade metadata deletion while physical files still exist.
     documents: Mapped[list["Document"]] = relationship(
         back_populates="owner", passive_deletes="all"
+    )
+    conversations: Mapped[list["Conversation"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )

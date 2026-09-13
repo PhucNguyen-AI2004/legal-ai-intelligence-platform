@@ -17,8 +17,23 @@ def test_migration_downgrade_upgrade_and_metadata_match(db_session):
     assert "documents" in inspect(connection).get_table_names()
     assert "document_chunks" in inspect(connection).get_table_names()
     assert "chunk_embeddings" in inspect(connection).get_table_names()
-    assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0004_vector_embeddings"
+    assert "conversations" in inspect(connection).get_table_names()
+    assert "messages" in inspect(connection).get_table_names()
+    assert "message_citations" in inspect(connection).get_table_names()
+    assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005_conversations_and_messages"
     command.check(config)
+
+
+def test_conversation_migration_constraints_and_cascade(db_session):
+    connection = db_session.bind
+    inspector = inspect(connection)
+    assert any(item["column_names"] == ["user_id"] for item in inspector.get_indexes("conversations"))
+    assert any(item["column_names"] == ["user_id", "updated_at"] for item in inspector.get_indexes("conversations"))
+    assert any(item["column_names"] == ["conversation_id", "sequence_number"] for item in inspector.get_unique_constraints("messages"))
+    assert any(item["column_names"] == ["message_id", "citation_index"] for item in inspector.get_unique_constraints("message_citations"))
+    assert any(fk["referred_table"] == "conversations" and fk["options"].get("ondelete") == "CASCADE" for fk in inspector.get_foreign_keys("messages"))
+    assert any(fk["referred_table"] == "messages" and fk["options"].get("ondelete") == "CASCADE" for fk in inspector.get_foreign_keys("message_citations"))
+    assert any(fk["referred_table"] == "documents" and fk["options"].get("ondelete") == "CASCADE" for fk in inspector.get_foreign_keys("message_citations"))
 
 
 def test_vector_migration_constraints_and_dimension(db_session):

@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = Field(default=60, ge=1, le=300, allow_inf_nan=False)
     rag_min_similarity: float = Field(default=0.45, ge=-1, le=1, allow_inf_nan=False)
     rag_max_context_chars: int = Field(default=12000, ge=100, le=50000)
+    chat_history_max_messages: int = Field(default=6, ge=0, le=20)
 
     @field_validator("embedding_dimension")
     @classmethod

@@ -13,7 +13,7 @@ của Phase 5. Hướng dẫn cấu hình provider và kiểm tra ở mục **Ph
 bảng users, đăng ký, đăng nhập bằng JWT, upload/lưu metadata, list/detail/delete
 tài liệu thuộc user hiện tại, xử lý tài liệu, index embeddings, semantic search và RAG. Phase 1–5 đã được
 người dùng xác nhận test thực tế.
-Chưa có OCR, conversation history, streaming, frontend, social login,
+Chưa có OCR, streaming, frontend, social login,
 refresh token, email verification, forgot password hoặc role/permission phức tạp.
 Đây là nền tảng có cấu trúc để mở rộng; chưa phải bản triển
 khai production hoàn chỉnh (chưa có TLS, secrets manager, backup hay monitoring).
@@ -213,7 +213,7 @@ docker compose exec backend alembic upgrade head
 docker compose exec backend alembic current
 ```
 
-Head hiện tại là `0004_vector_embeddings`; `current` phải hiển thị revision này.
+Head hiện tại là `0005_conversations_and_messages`; `current` phải hiển thị revision này.
 Upgrade giữ users/documents và thêm processing_error/document_chunks. Database
 mới chạy cả ba migration theo thứ tự. Chạy `docker compose exec backend alembic check`
 để kiểm tra model/schema có đồng bộ không.
@@ -872,7 +872,7 @@ docker compose exec backend alembic current
 docker compose exec backend alembic check
 ```
 
-Head mong đợi `0004_vector_embeddings`; users/documents/chunks hiện có được giữ,
+Head mong đợi `0005_conversations_and_messages`; users/documents/chunks hiện có được giữ,
 embedding_status ban đầu pending. Backup chưa đủ: khi vận hành cần kiểm tra restore
 trên database riêng. Không downgrade migration này để thử trên dữ liệu cần giữ vì
 downgrade xóa bảng embeddings. Extension public được giữ khi downgrade vì có thể dùng chung.
@@ -979,7 +979,7 @@ Question -> Retrieve (Phase 5, ownership filters)
          -> LLM Provider -> validate answer/citation numbers -> Answer + Citations
 ```
 
-Không có schema database mới; migration head vẫn `0004_vector_embeddings`.
+Riêng Phase 6 không thêm schema database; tại thời điểm đó migration head là `0004_vector_embeddings`.
 Không thay logic `/search`. RAG gọi trực tiếp `search_documents()` để kế thừa owner,
 processed/indexed/model filters, top K và kiểm tra tất cả document_ids thuộc owner.
 Không lưu hội thoại, không có streaming/tools/agents/reranker/hybrid search.
@@ -1177,11 +1177,130 @@ Docker trước đã bị từ chối. Phase 1–5 được người dùng xác 
 - Provider abstraction tách nghiệp vụ RAG khỏi HTTP/vendor, dễ fake test và đổi
   provider mà không sửa ownership/retrieval/context builder.
 
+## Phase 7: Conversation and chat history
+
+Phase 7 adds authenticated conversations, persisted user/assistant messages, saved citations, and stateful multi-turn RAG. It reuses the Phase 6 retrieval/context/grounding flow instead of embedding the whole conversation.
+
+```text
+POST /conversations -> create an empty conversation
+POST /conversations/{id}/messages
+  -> Transaction A: validate owner + documents, save user message, commit
+  -> bounded recent history
+  -> rewrite follow-up question into a standalone retrieval query when needed
+  -> Phase 5 semantic retrieval + Phase 6 context builder
+  -> answer-generation LLM only when document context exists
+  -> Transaction B: save assistant message + citation rows, update conversation, commit
+```
+
+### Phase 7 API
+
+All endpoints require `Authorization: Bearer <token>`.
+
+| Endpoint | Purpose | LLM cost |
+| --- | --- | --- |
+| `POST /conversations` | Create conversation, default title `New conversation` if omitted | No |
+| `GET /conversations?limit=20&offset=0` | List only current user's conversations, sorted by `updated_at DESC` | No |
+| `GET /conversations/{conversation_id}` | Get conversation with messages and persisted citations | No |
+| `PATCH /conversations/{conversation_id}` | Rename conversation | No |
+| `DELETE /conversations/{conversation_id}` | Delete conversation, messages, and citations | No |
+| `POST /conversations/{conversation_id}/messages` | Add a user turn and return the assistant message | Maybe |
+
+Message request:
+
+```json
+{
+  "content": "Nguoi su dung co nhung quyen gi?",
+  "document_ids": null,
+  "top_k": 3
+}
+```
+
+`content` is trimmed and limited to 1-4000 characters. `top_k` accepts 1-10. `document_ids` is optional, deduplicated, and every ID must belong to the authenticated user; missing or foreign IDs return 404 before any LLM call.
+
+### Database schema
+
+Migration head is now `0005_conversations_and_messages`.
+
+New tables:
+
+```text
+conversations(id, user_id, title, created_at, updated_at)
+messages(id, conversation_id, role, content, sequence_number, grounded, retrieval_query, created_at)
+message_citations(id, message_id, citation_index, document_id, chunk_id, similarity_score, created_at)
+```
+
+`messages` uses `UNIQUE(conversation_id, sequence_number)` so chat order does not depend on timestamp precision. Conversation deletion cascades to messages and citations. Documents, chunks, and embeddings remain independent; citations only reference canonical document/chunk rows and do not duplicate chunk text or metadata.
+
+### Multi-turn behavior
+
+The system does not embed full chat history. For the first turn, the raw user question is used as the retrieval query. For follow-up turns, the app loads only `CHAT_HISTORY_MAX_MESSAGES` recent messages, rewrites the latest question into a standalone search query, stores that query on the user message, and embeds only that standalone query.
+
+History is used for conversational intent only. It is passed as untrusted input and is not legal evidence. The answer prompt still treats document context as the only source that can support citations.
+
+### Environment variables
+
+Add or keep:
+
+```dotenv
+CHAT_HISTORY_MAX_MESSAGES=6
+```
+
+Default is 6, with validation range 0-20. Setting it to 0 disables history use and makes every turn behave like a standalone question.
+
+### Running migration
+
+Docker:
+
+```powershell
+docker compose exec backend alembic upgrade head
+docker compose exec backend alembic current
+```
+
+Local:
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m alembic current
+```
+
+Expected current revision:
+
+```text
+0005_conversations_and_messages
+```
+
+### Swagger test flow
+
+1. Register/login, then click Authorize in Swagger.
+2. Upload, process, and index at least one text document.
+3. Create a conversation with `POST /conversations`.
+4. Send the first message with `POST /conversations/{id}/messages`.
+5. Send a follow-up such as `Con nghia vu cua ho?`.
+6. Open `GET /conversations/{id}` and verify:
+   `user` messages have `retrieval_query`, assistant messages have `grounded`, citations are stored separately, and sequence numbers are `1, 2, 3, 4...`.
+
+Cost behavior: conversation CRUD, auth, ownership checks, validation, and database reads do not call the LLM. First-turn RAG may call answer generation. Follow-up RAG may call query rewrite plus answer generation. Follow-up no-context may call query rewrite, but skips answer generation.
+
+### Phase 7 test commands
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m pytest -q tests/test_conversations.py tests/test_rag.py tests/test_migrations.py
+python -m pytest -q
+```
+
+The conversation tests use a fake LLM provider, so they do not spend API tokens. Use the PostgreSQL test compose file for a closer migration/FK/cascade check:
+
+```powershell
+docker compose -p legal-ai-phase7-tests -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test
+docker compose -p legal-ai-phase7-tests -f docker-compose.test.yml down
+```
+
 ## Planned next phases
 
 Phase 1–5 đã được người dùng xác nhận chạy thực tế. Phase 6 có single-turn RAG và
-citations; giới hạn kiểm chứng ghi ở mục Phase 6. Chưa triển khai Phase 7:
-conversation persistence, streaming, frontend, agents, reranker/hybrid search.
+citations; Phase 7 thêm conversation persistence và chat history. Chưa triển khai:
+streaming, frontend, agents, reranker/hybrid search.
 
 ## Troubleshooting
 
@@ -1201,7 +1320,7 @@ conversation persistence, streaming, frontend, agents, reranker/hybrid search.
 | ModuleNotFoundError | Cài requirements trong đúng Python/venv hoặc rebuild image |
 | Test PostgreSQL từ chối URL | Dùng database test có tên kết thúc bằng `_test` |
 | Model mới không được autogenerate | Import model vào Alembic env trước khi so sánh metadata |
-| relation documents/document_chunks/chunk_embeddings does not exist | Chạy upgrade head; revision phải là 0004_vector_embeddings |
+| relation documents/document_chunks/chunk_embeddings/conversations does not exist | Chạy upgrade head; revision phải là 0005_conversations_and_messages |
 | Upload 413 | Giảm file size hoặc chỉnh MAX_UPLOAD_SIZE_MB rồi restart/recreate backend |
 | Upload 415 | Kiểm tra extension/MIME; PDF header, DOCX container hoặc TXT UTF-8 |
 | Document 404 | ID không tồn tại, đã xóa hoặc thuộc user khác |
