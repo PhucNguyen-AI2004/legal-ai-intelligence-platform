@@ -23,6 +23,15 @@ os.environ["TRANSFORMERS_OFFLINE"] = "1"
 os.environ["EMBEDDING_MODEL_NAME"] = EMBEDDING_MODEL
 os.environ["EMBEDDING_DIMENSION"] = str(VECTOR_DIMENSION)
 os.environ["EMBEDDING_BATCH_SIZE"] = "16"
+os.environ["LLM_PROVIDER"] = "openai-compatible"
+os.environ["LLM_MODEL"] = "test-model"
+os.environ["LLM_API_KEY"] = ""
+os.environ["LLM_BASE_URL"] = ""
+os.environ["LLM_TEMPERATURE"] = "0.1"
+os.environ["LLM_MAX_TOKENS"] = "800"
+os.environ["LLM_TIMEOUT_SECONDS"] = "60"
+os.environ["RAG_MIN_SIMILARITY"] = "0.45"
+os.environ["RAG_MAX_CONTEXT_CHARS"] = "12000"
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://localhost:1/legal_ai_test"
 )

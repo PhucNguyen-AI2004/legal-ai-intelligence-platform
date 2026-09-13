@@ -4,17 +4,16 @@
 
 Dự án portfolio hướng tới vị trí Fresher/Junior AI Engineer hoặc Data Engineer.
 Mục tiêu dài hạn là xử lý tài liệu pháp luật và trả lời câu hỏi có dẫn nguồn.
-**Phase 5 bổ sung local embeddings và semantic search** trên nền backend,
-authentication, documents và processing hiện có. Hướng dẫn nâng cấp và kiểm tra
-model thật ở mục **Phase 5** bên dưới.
+**Phase 6 bổ sung single-turn RAG answer và citations**, dùng lại semantic retrieval
+của Phase 5. Hướng dẫn cấu hình provider và kiểm tra ở mục **Phase 6** bên dưới.
 
 ## Current phase
 
 Đã có FastAPI, cấu hình môi trường, SQLAlchemy, PostgreSQL, Alembic, Docker,
 bảng users, đăng ký, đăng nhập bằng JWT, upload/lưu metadata, list/detail/delete
-tài liệu thuộc user hiện tại, xử lý tài liệu, index embeddings và semantic search. Phase 1–4 đã được
+tài liệu thuộc user hiện tại, xử lý tài liệu, index embeddings, semantic search và RAG. Phase 1–5 đã được
 người dùng xác nhận test thực tế.
-Chưa có OCR, LLM, RAG, frontend, social login,
+Chưa có OCR, conversation history, streaming, frontend, social login,
 refresh token, email verification, forgot password hoặc role/permission phức tạp.
 Đây là nền tảng có cấu trúc để mở rộng; chưa phải bản triển
 khai production hoàn chỉnh (chưa có TLS, secrets manager, backup hay monitoring).
@@ -971,12 +970,218 @@ Phase 1–4 được người dùng xác nhận chạy thực tế trước phi�
 | Search chất lượng thấp | Kiểm tra text extraction/chunks, truncation, cùng model/prefix và dữ liệu test; score không phải confidence |
 | CPU/RAM quá tải | Một worker, giảm EMBEDDING_BATCH_SIZE; document lớn cần thiết kế background jobs sau |
 
+## Phase 6: Single-turn grounded RAG
+
+```text
+Upload -> Extract -> Chunk -> Embed -> pgvector
+Question -> Retrieve (Phase 5, ownership filters)
+         -> similarity threshold -> Context Builder (numbered sources, char budget)
+         -> LLM Provider -> validate answer/citation numbers -> Answer + Citations
+```
+
+Không có schema database mới; migration head vẫn `0004_vector_embeddings`.
+Không thay logic `/search`. RAG gọi trực tiếp `search_documents()` để kế thừa owner,
+processed/indexed/model filters, top K và kiểm tra tất cả document_ids thuộc owner.
+Không lưu hội thoại, không có streaming/tools/agents/reranker/hybrid search.
+
+### Files và provider abstraction
+
+```text
+app/api/rag.py                  # authenticated POST /rag/ask
+app/schemas/rag.py              # request, citation, response
+app/services/rag.py             # orchestration, threshold, grounding checks
+app/services/rag_context.py     # numbered sources and char budget
+app/services/rag_prompt.py      # fixed system instructions
+app/services/llm.py             # LLMProvider Protocol + OpenAI-compatible adapter
+tests/test_rag.py               # API/retrieval tests with FakeLLMProvider
+tests/test_llm_context.py       # offline HTTP mock and context unit tests
+```
+
+Endpoint không gọi provider API trực tiếp. `LLMProvider.generate_answer()` nhận
+system prompt/question/context và trả text. Dependency injection cho phép thay
+provider hoặc fake trong tests. Adapter HTTPX dùng Chat Completions JSON để không
+phụ thuộc SDK riêng một vendor. Không gọi provider khi import app hoặc Alembic.
+
+Adapter hiện gửi `messages`, `temperature`, `max_tokens` tới `/chat/completions`.
+Chọn model hỗ trợ các tham số này; không phải mọi model OpenAI-compatible đều hỗ trợ
+giống nhau. Ví dụ model reasoning có thể yêu cầu tham số khác. `max_tokens` là giao
+diện tương thích cũ; muốn dùng model yêu cầu `max_completion_tokens` cần adapter phù
+hợp, không tự retry bằng model khác. Tham khảo
+[Chat Completions API](https://platform.openai.com/docs/api-reference/chat/create).
+Không chọn model mặc định để tránh phát sinh chi phí ngoài ý muốn.
+
+### Environment variables
+
+Thêm vào `.env` hiện có, giữ nguyên database/auth/embedding settings:
+
+```dotenv
+LLM_PROVIDER=openai-compatible
+LLM_MODEL=
+LLM_API_KEY=
+LLM_BASE_URL=
+LLM_TEMPERATURE=0.1
+LLM_MAX_TOKENS=800
+LLM_TIMEOUT_SECONDS=60
+RAG_MIN_SIMILARITY=0.45
+RAG_MAX_CONTEXT_CHARS=12000
+```
+
+LLM_MODEL là ID model chính xác từ provider; chọn model chat nhỏ hỗ trợ temperature
+và max_tokens, kiểm tra giá/quota tại provider trước manual test. API key là SecretStr,
+không hard-code, không đưa vào prompt/logs/response. `.env` không commit.
+
+| Provider thực tế | LLM_PROVIDER | LLM_BASE_URL | LLM_MODEL / key |
+| --- | --- | --- | --- |
+| OpenAI | openai-compatible | để trống, mặc định https://api.openai.com/v1 | model chat phù hợp và key của bạn |
+| OpenRouter | openai-compatible | https://openrouter.ai/api/v1 | ID model và key của OpenRouter |
+| Local server | openai-compatible | http://localhost:PORT/v1 | model đang serve; key local hoặc giá trị dummy nếu server bỏ qua auth |
+
+Endpoint OpenRouter theo [tài liệu quickstart](https://openrouter.ai/docs/quickstart).
+
+Trong Docker Desktop, server chạy trên Windows host dùng
+`http://host.docker.internal:PORT/v1`. Không dùng localhost container để gọi host.
+URL phải là API root, không thêm `/chat/completions`. Adapter không follow redirects;
+HTTP chỉ cho localhost/loopback/host.docker.internal, hosted provider cần HTTPS.
+Tự cấu hình endpoint tin cậy: các chunks được chọn và question sẽ được gửi tới nó.
+Không gửi internal paths, stored filename, owner ID hay full vectors.
+
+Thiếu key/model hoặc provider unsupported **không chặn startup**. Khi cần generation,
+trả 503 với lỗi cấu hình rõ. Nếu không có context phù hợp, vẫn trả no-context 200 và
+không kiểm tra key/gọi provider. Đây là ưu tiên no-context để tiết kiệm chi phí.
+
+### Request, context và citations
+
+```json
+{"question":"Người sử dụng có quyền gì đối với dữ liệu?","document_ids":null,"top_k":5}
+```
+
+Question trim, 1–1000 ký tự; top_k 1–10, mặc định 5. document_ids giống `/search`:
+null là tất cả owned indexed documents; list 1–100 UUID, deduplicate; foreign/missing
+ID trả 404, [] trả 422. Tài liệu owned nhưng chưa indexed không đưa vào context.
+
+Context builder sắp xếp score cao trước, bỏ duplicate chunk_id, giữ nguyên chunks
+và đánh SOURCE 1, SOURCE 2 liên tục. Budget tính cả header và JSON-escaped content.
+Chunk không vừa budget được bỏ qua để thử chunk nhỏ hơn; không cắt ngang câu/điều
+luật. Nếu không chunk nào vừa, xử lý như no-context. Excerpt response tối đa 500 ký
+tự; context chứa toàn bộ chunk được chọn. Metadata citation luôn lấy từ backend.
+
+Response gồm answer, grounded, citations, model, retrieved_chunks, used_chunks.
+`retrieved_chunks` là số top K trước threshold; `used_chunks` là số chunks đã gửi
+trong context, không phải số citation được model sử dụng. `model=null` khi không
+gọi LLM, còn lại là model cấu hình. Mỗi citation có citation_number, document_id,
+document_title, chunk_id, chunk_index, score, excerpt. Chỉ trả nguồn model thực sự
+viện dẫn; nếu model chỉ dùng [2], citations chỉ chứa citation_number 2.
+
+### Prompt và grounding policy
+
+System prompt cố định yêu cầu chỉ dựa context, không bịa điều luật/số điều, giữ sự
+khác biệt giữa nguồn, trả lời theo ngôn ngữ câu hỏi, dùng [1], [2] hợp lệ và thừa
+nhận thiếu thông tin. Question/context nằm trong user messages, không chèn vào system.
+Tài liệu được coi là dữ liệu không tin cậy: không làm theo hướng dẫn trong tài liệu.
+JSON escaping giúp phân biệt cấu trúc nguồn; đây không phải hàng rào bảo mật tuyệt đối.
+
+| Trường hợp | Hành vi |
+| --- | --- |
+| Không nguồn vượt threshold/không vừa budget | Không gọi LLM, message tiếng Việt cố định, grounded false, citations [] |
+| Answer rỗng/malformed/bị cắt do token limit | 503, không trả partial answer |
+| Answer chứa [99] hoặc dạng numeric citation không hỗ trợ như [1, 99] | Bỏ answer, trả message thiếu thông tin, grounded false, citations [] |
+| Answer có nguồn hợp lệ | Map metadata backend, grounded true nếu có ít nhất một citation |
+| Answer không có citation, kể cả lời từ chối | Giữ text nhưng grounded false, citations [] |
+
+`grounded=true` **chỉ là structural grounding**, không xác minh từng khẳng định có
+được nguồn hỗ trợ. LLM vẫn có thể đưa nội dung sai kèm [1] hợp lệ. Không có factual
+verifier, entailment check hoặc đảm bảo legal correctness. Client cần hiển thị trạng
+thái này và cho người dùng đọc nguồn. Citation trỏ nguồn thật không chứng minh câu
+trả lời suy luận đúng.
+
+### Cost, errors và logs
+
+Threshold mặc định 0.45 là điểm bắt đầu cần hiệu chỉnh trên câu hỏi/tài liệu thật,
+không phải confidence và không đảm bảo relevance. E5 scores có thể tập trung cao;
+ngưỡng quá thấp vẫn gửi nguồn yếu, quá cao bỏ sót nguồn hữu ích.
+
+Temperature 0.1 giảm biến thiên nhưng không ngăn hallucination. Max tokens 800 giới
+hạn output; context budget 12000 ký tự không phải token count/context window chính
+xác. Cần chừa chỗ cho system prompt, question và output theo model chọn. Không tự
+retry sau timeout/rate limit vì request trước có thể đã tiêu token.
+
+Thiếu cấu hình, provider auth failure, 429, network/timeout, response malformed đều
+trả 503 với thông báo an toàn; invalid input 422; thiếu JWT 401. Không trả provider
+body/traceback. Timeout HTTPX áp dụng theo các thao tác mạng, không phải hard deadline
+toàn request. LLM_MAX_TOKENS không thay thế rate limit theo user; chưa có quota server.
+Log có request start, retrieved/used counts, provider/model lúc gọi, duration,
+success/failure và loại lỗi. Không log question, context, JWT, password hay key.
+
+### Chạy và test bằng Swagger
+
+1. Điền LLM_MODEL, LLM_API_KEY và LLM_BASE_URL nếu dùng provider khác.
+2. Rebuild/recreate để Compose nhận env mới (restart đơn thuần không cập nhật env):
+
+```powershell
+docker compose config --quiet
+docker compose up --build -d backend
+```
+
+3. Mở http://localhost:8000/docs, login và Authorize.
+4. Upload TXT: “Người sử dụng có quyền truy cập dữ liệu trong phạm vi được cấp quyền.”
+5. Gọi process rồi index; có thể dùng tài liệu Phase 5 đã indexed.
+6. POST /rag/ask với question “Người dùng được phép làm gì với dữ liệu?”.
+7. Kỳ vọng answer dựa trên đoạn đó, có [1] và citation đúng chunk. Đây là manual
+   check cần chạy với provider thật, chưa có kết quả thực tế trong phiên triển khai.
+8. Thử user chưa có tài liệu: no-context, không gọi LLM. Thử foreign document_ids:404.
+9. Bỏ key và recreate backend: health vẫn hoạt động; ask có relevant context trả503.
+
+Provider thật có thể tính phí. Chỉ gửi tài liệu bạn cho phép provider đó xử lý.
+Không cần migration mới; không xóa database/model volumes khi triển khai Phase 6.
+
+### Automated tests và trạng thái kiểm chứng
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+python -m pytest -q tests/test_rag.py tests/test_llm_context.py
+docker compose -p legal-ai-phase6-tests -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test
+docker compose -p legal-ai-phase6-tests -f docker-compose.test.yml down
+```
+
+Tests dùng FakeLLMProvider hoặc HTTPX MockTransport, không gọi API thật. Env LLM trong
+tests được ghi đè để không dùng key từ `.env`. Default SQLite tests và PostgreSQL
+test stack giữ cơ chế isolation Phase 5. API tests kiểm tra auth/validation, ownership,
+threshold/no-call, citations, invalid refs, timeout, config và search regression.
+
+Có thể chạy riêng pure unit tests khi đã có HTTPX/Pydantic, không cần model/DB:
+
+```powershell
+python -m unittest discover -s tests -p test_llm_context.py -v
+```
+
+Phiên triển khai Phase 6: 6 pure unit tests đã pass, compileall và Compose config
+đạt. Chưa chạy pytest suite/API runtime/PostgreSQL integration hoặc gọi provider
+thật: Python/venv thiếu pytest và một số dependency; các lần cấp quyền cài đặt/chạy
+Docker trước đã bị từ chối. Phase 1–5 được người dùng xác nhận chạy thực tế.
+
+### Khái niệm phỏng vấn
+
+- RAG kết hợp retrieval và generation: tìm nguồn riêng trước, rồi cho LLM diễn đạt
+  dựa trên nguồn; không cần huấn luyện lại model khi thêm tài liệu.
+- Retrieval chọn bằng chứng; generation tạo ngôn ngữ. Retrieval sai/thiếu khiến câu
+  trả lời khó đúng dù model mạnh, nên cần đánh giá hai bước riêng.
+- Hallucination là thông tin model tạo ra không có căn cứ hoặc sai. Grounding yêu
+  cầu bám nguồn; prompt, threshold và citations giúp giảm rủi ro, không triệt tiêu.
+- Backend kiểm soát citation metadata vì LLM có thể bịa UUID/tên nguồn. Model chỉ
+  chọn số nguồn đã được đánh sẵn, backend kiểm tra trước khi trả metadata.
+- Context window là khả năng input/output của model theo tokens; char budget là
+  giới hạn đơn giản để kiểm soát độ dài/cost, chưa phải tokenizer chính xác.
+- Prompt injection là tài liệu chứa chỉ dẫn như “bỏ qua system prompt”. Phân tách
+  vai trò và coi context là dữ liệu là phòng vệ cơ bản, không đảm bảo tuyệt đối.
+- Provider abstraction tách nghiệp vụ RAG khỏi HTTP/vendor, dễ fake test và đổi
+  provider mà không sửa ownership/retrieval/context builder.
+
 ## Planned next phases
 
-Phase 1–4 đã được người dùng xác nhận chạy thực tế. Phase 5 đã bổ sung mã nguồn
-embeddings và semantic retrieval; giới hạn kiểm chứng của phiên này ghi bên dưới.
-Các phase tiếp theo có thể bổ sung RAG/citation/hội thoại, deploy và monitoring.
-Chưa triển khai Phase 6, LLM, answer generation, reranker hoặc hybrid search.
+Phase 1–5 đã được người dùng xác nhận chạy thực tế. Phase 6 có single-turn RAG và
+citations; giới hạn kiểm chứng ghi ở mục Phase 6. Chưa triển khai Phase 7:
+conversation persistence, streaming, frontend, agents, reranker/hybrid search.
 
 ## Troubleshooting
 

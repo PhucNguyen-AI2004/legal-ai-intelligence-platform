@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     embedding_dimension: int = VECTOR_DIMENSION
     embedding_batch_size: int = Field(default=16, ge=1, le=128)
     hf_home: Path = Path(".cache/huggingface")
+    llm_provider: str = "openai-compatible"
+    llm_model: str = ""
+    llm_api_key: SecretStr = SecretStr("")
+    llm_base_url: str = ""
+    llm_temperature: float = Field(default=0.1, ge=0, le=2, allow_inf_nan=False)
+    llm_max_tokens: int = Field(default=800, ge=1, le=8192)
+    llm_timeout_seconds: float = Field(default=60, ge=1, le=300, allow_inf_nan=False)
+    rag_min_similarity: float = Field(default=0.45, ge=-1, le=1, allow_inf_nan=False)
+    rag_max_context_chars: int = Field(default=12000, ge=100, le=50000)
 
     @field_validator("embedding_dimension")
     @classmethod
