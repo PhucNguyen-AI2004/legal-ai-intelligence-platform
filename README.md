@@ -1383,6 +1383,19 @@ JWT headers directly.
 
 ## Planned next phases
 
+## Phase 8D: Conversations workspace
+
+Phase 8D connects the workspace sidebar to the authenticated conversation API.
+Users can create, list, search, select, rename, and delete their own conversations.
+The detail route `/app/chat/[conversationId]` reloads persisted messages in
+`sequence_number` order and displays saved citation markers. Message sending remains
+disabled in this phase; conversation data and JWT headers stay centralized in the
+conversation API/provider rather than page components.
+
+The sidebar initially requests 20 conversations and uses `offset` for **Xem thêm**.
+The backend remains authoritative for ownership, ordering, and stored history; date
+groups and title search are presentation-only client behavior.
+
 Phase 1–5 đã được người dùng xác nhận chạy thực tế. Phase 6 có single-turn RAG và
 citations; Phase 7 thêm conversation persistence và chat history. Chưa triển khai:
 streaming, frontend, agents, reranker/hybrid search.
