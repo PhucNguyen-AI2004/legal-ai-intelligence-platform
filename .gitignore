@@ -31,3 +31,4 @@ frontend/.env.local
 frontend/*.tsbuildinfo
 *.sql
 .pytest_*/
+.agent-handoff/

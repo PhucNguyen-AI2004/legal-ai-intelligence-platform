@@ -17,6 +17,26 @@ Completed baseline: Phases 1–7 and 8A–8D, reported PASS by the project owner
 - Follow the relevant commands and checklists in TESTING.md. Keep documentation synchronized with approved architecture and phase status.
 - Prefer Server Components; use Client Components where interaction requires them. Never globally disable ESLint or TypeScript rules to silence real errors. Never manually edit generated Next.js `.next` files.
 
+## Temporary agent handoff reports
+
+When Codex completes an orchestrated implementation task, its final report must also be written to `.agent-handoff/LATEST_CODEX_REPORT.md`.
+
+The report must contain:
+
+- Phase/task
+- Architecture used
+- Files created
+- Files modified
+- Backend files modified
+- API contracts used
+- Validation commands
+- Exact validation results
+- Known failures/blockers
+- Current git status
+- Manual tests still required
+
+Never write secrets into this report. This report is temporary and must not be committed; keep `.agent-handoff/` gitignored.
+
 ## Security and product invariants
 
 - Never expose `.env`, `frontend/.env.local`, JWTs, SECRET_KEY, LLM_API_KEY, database passwords, access tokens, or other secrets. Never print environment-file values or resolved secret-bearing configuration. Never hard-code secrets. Examples must use placeholders, not credentials.
