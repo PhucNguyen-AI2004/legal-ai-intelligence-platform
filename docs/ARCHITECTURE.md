@@ -1,5 +1,9 @@
 # Architecture
 
+## Pre-8G Chat UX refinement
+
+The existing message hook now owns AbortControllers for client-only Stop and provider-held editable question copies. Sending/stopping/reconciliation remain separate from composer and transport; Stop never represents server cancellation. A successful history reload and explicit review precede another send. Per-answer Sources drawers reuse native Modal and live CitationSource validation; assistant answers render in flow beside right-aligned user bubbles. Backend, auth, RAG and per-message scope contracts are unchanged. See [implementation, limits and validation](PRE_8G_CHAT_UX_VALIDATION.md). This addendum supersedes older inline-source presentation descriptions below.
+
 Source map including owner-accepted Phase 8E. Phase 8F adds a small native Modal component for upload/confirmations and the mobile drawer. Providers, message reconciliation and API contracts remain unchanged. Phase 8F implementation, owner-local automated validation, and owner manual regression are complete and accepted; see PHASE_8F_VALIDATION.md. Read actual routes/schemas before contract changes.
 
 ```mermaid

@@ -3,13 +3,14 @@
 import { useCallback, useRef, useState } from "react";
 import { ApiError } from "@/lib/api/client";
 import { getConversation, sendMessage } from "@/lib/conversations/conversation-api";
-import { messagePersistence, type Persistence } from "@/lib/conversations/message-flow";
+import { canStartSubmission, isClientAbort, messagePersistence, type Persistence, type SubmissionPhase } from "@/lib/conversations/message-flow";
 import type { ConversationDetail, ConversationSummary, CreateMessageRequest } from "@/lib/conversations/types";
 
 export interface Submission {
   request: CreateMessageRequest;
   previousIds: string[];
-  phase: "queued" | "sending" | "reconciling" | "settled";
+  phase: SubmissionPhase;
+  interruption?: "client-stop";
   persistence: Persistence;
   postError: string | null;
   syncError: boolean;
@@ -26,6 +27,12 @@ export function useConversationMessages(upsert: (conversation: ConversationSumma
   const submissionRef = useRef<Record<string, Submission>>({});
   const versions = useRef<Record<string, number>>({});
   const refreshing = useRef(new Map<string, Promise<void>>());
+  const transports = useRef(new Map<string, AbortController>());
+  const [draftCopies, setDraftCopies] = useState<Record<string, string>>({});
+
+  const editDraftCopy = useCallback((id: string, content: string) => {
+    setDraftCopies((current) => ({ ...current, [id]: content }));
+  }, []);
 
   const saveHistory = useCallback((history: ConversationDetail) => {
     historyRef.current[history.id] = history;
@@ -51,7 +58,8 @@ export function useConversationMessages(upsert: (conversation: ConversationSumma
       const history = await readHistory(id);
       saveSubmission(id, {
         ...submission, phase: "settled", syncError: false,
-        persistence: submission.postError ? messagePersistence(history, submission.previousIds, submission.request.content, submission.definitiveFailure) : "saved",
+        acknowledged: submission.interruption === "client-stop" || submission.acknowledged,
+        persistence: submission.postError || submission.interruption ? messagePersistence(history, submission.previousIds, submission.request.content, submission.definitiveFailure) : "saved",
       });
     } catch {
       saveSubmission(id, { ...submission, phase: "settled", syncError: true });
@@ -60,7 +68,7 @@ export function useConversationMessages(upsert: (conversation: ConversationSumma
 
   const isSending = useCallback((id: string) => {
     const submission = submissionRef.current[id];
-    return refreshing.current.has(id) || Boolean(submission && submission.phase !== "settled");
+    return refreshing.current.has(id) || !canStartSubmission(submission?.phase);
   }, []);
 
   const loadHistory = useCallback(async (id: string) => {
@@ -97,21 +105,39 @@ export function useConversationMessages(upsert: (conversation: ConversationSumma
     };
     // Synchronous ref claim prevents duplicate events and Strict Mode replays.
     saveSubmission(id, submission);
+    const controller = new AbortController();
+    transports.current.set(id, controller);
+    setDraftCopies((current) => { const next = { ...current }; delete next[id]; return next; });
     try {
-      await sendMessage(id, body);
+      await sendMessage(id, body, controller.signal);
     } catch (caught) {
       submission = { ...submission,
-        definitiveFailure: caught instanceof ApiError && ![408, 502, 504].includes(caught.status),
+        definitiveFailure: !isClientAbort(caught) && caught instanceof ApiError && ![408, 502, 504].includes(caught.status),
         postError: caught instanceof ApiError && caught.status === 404
           ? "Không tìm thấy hội thoại hoặc tài liệu đã chọn."
           : "Chưa nhận được phản hồi hoàn chỉnh. Không tự động gửi lại câu hỏi.",
       };
     }
+    // Stop can win even when the response resolves just before abort is observed.
+    if (controller.signal.aborted) submission = {
+      ...submission, interruption: "client-stop", definitiveFailure: false,
+      postError: null,
+    };
+    transports.current.delete(id);
     submission = { ...submission, phase: "reconciling" };
     saveSubmission(id, submission);
     await reconcile(id, submission);
     return true;
   }, [isSending, reconcile, saveSubmission]);
+
+  const stopMessage = useCallback((id: string) => {
+    const submission = submissionRef.current[id];
+    const controller = transports.current.get(id);
+    if (submission?.phase !== "sending" || !controller) return;
+    editDraftCopy(id, submission.request.content);
+    saveSubmission(id, { ...submission, phase: "stopping", interruption: "client-stop" });
+    controller.abort();
+  }, [editDraftCopy, saveSubmission]);
 
   const acknowledge = useCallback((id: string) => {
     const submission = submissionRef.current[id];
@@ -121,10 +147,11 @@ export function useConversationMessages(upsert: (conversation: ConversationSumma
   const forget = useCallback((id: string) => {
     delete historyRef.current[id];
     delete submissionRef.current[id];
+    setDraftCopies((current) => { const next = { ...current }; delete next[id]; return next; });
     versions.current[id] = (versions.current[id] ?? 0) + 1;
     setHistories((current) => { const next = { ...current }; delete next[id]; return next; });
     setSubmissions((current) => { const next = { ...current }; delete next[id]; return next; });
   }, []);
 
-  return { histories, submissions, loadHistory, queueMessage, submitMessage, acknowledge, isSending, forget };
+  return { histories, submissions, draftCopies, editDraftCopy, stopMessage, loadHistory, queueMessage, submitMessage, acknowledge, isSending, forget };
 }

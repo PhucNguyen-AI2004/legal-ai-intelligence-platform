@@ -1,5 +1,7 @@
 # Roadmap
 
+**Authorized interim work: Pre-8G Chat UX refinement.** Implemented, owner acceptance pending; see [validation/checklist](PRE_8G_CHAT_UX_VALIDATION.md). This does not renumber phases or start 8G, 9 or 10.
+
 Status baseline supplied by the project owner, reconciled with source on 2026-09-14. Historical PASS is not a new validation result.
 
 | Phase | Status | Scope |

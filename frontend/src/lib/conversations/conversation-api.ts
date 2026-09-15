@@ -2,8 +2,8 @@ import { apiRequest } from "@/lib/api/client";
 import type { ConversationMessage, CreateMessageRequest } from "./types";
 import type { ConversationDetail, ConversationListResponse, ConversationSummary, CreateConversationRequest, UpdateConversationRequest } from "./types";
 
-export async function sendMessage(id: string, body: CreateMessageRequest): Promise<ConversationMessage> {
-  const response = await apiRequest<ConversationMessage>(`/conversations/${id}/messages`, { method: "POST", auth: "required", body });
+export async function sendMessage(id: string, body: CreateMessageRequest, signal?: AbortSignal): Promise<ConversationMessage> {
+  const response = await apiRequest<ConversationMessage>(`/conversations/${id}/messages`, { method: "POST", auth: "required", body, signal });
   if (!response) throw new Error("The message response was empty.");
   return response;
 }

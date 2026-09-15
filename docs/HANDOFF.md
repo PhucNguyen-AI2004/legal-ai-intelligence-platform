@@ -1,5 +1,11 @@
 # Handoff
 
+**Current: Pre-8G Sources document reader implemented; owner manual acceptance pending.** All other Pre-8G behavior is owner accepted. Selected citations now open full extracted chunk text inside the existing drawer, with ten-chunk pagination, exact UUID evidence verification, contained focus/scroll and labelled highlighting. No document-workspace navigation or management UI. Stop and source scope are unchanged; backend/API/database unchanged. Lint/typecheck and 30 tests pass; sandbox build EPERM on `.next/trace`, outside-sandbox retry declined. See [reader validation/checklist](PRE_8G_CHAT_UX_VALIDATION.md). No stage/commit/push; Phase 8G has not started.
+
+**Current: Pre-8G corrective pass implemented; owner acceptance pending.** Owner accepted the previous visual direction and core behavior. The two corrections remove Stop acknowledgement after successful automatic reconciliation and add per-answer source list → citation detail → Back inside the existing drawer. Full-document navigation is secondary. Lint/typecheck and 23 tests pass; production build is sandbox EPERM-limited, elevated retry declined. See [current corrective evidence/checklist](PRE_8G_CHAT_UX_VALIDATION.md). This supersedes the earlier explicit-review requirement for user-initiated Stop. Backend/API/database unchanged; no stage/commit/push; 8G unstarted.
+
+**Pre-8G Chat UX refinement implemented; owner manual acceptance required.** Client-only Stop, editable copies/history reconciliation, per-answer Sources drawer and message hierarchy are documented in [validation](PRE_8G_CHAT_UX_VALIDATION.md). Lint/typecheck and 19 tests pass; build remains sandbox EPERM-limited and outside-sandbox execution was declined. No commit/push; Phase 8G has not started. Existing Phase 8F acceptance remains unchanged.
+
 **LEGAL AI INTELLIGENCE PLATFORM — 2026-09-14, inspected HEAD `7a675b7`.**
 
 **Completed / owner-reported acceptance:** 1-7 and 8A-8E. The explicit Phase 8F task confirms 8E manual acceptance.

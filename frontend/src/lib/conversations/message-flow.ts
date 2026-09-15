@@ -1,6 +1,29 @@
-import type { ConversationDetail, CreateMessageRequest } from "./types";
+import type { ConversationDetail, CreateMessageRequest, MessageCitation } from "./types";
+
+export function citationKey(citation: MessageCitation): string {
+  return `${citation.citation_index}:${citation.document_id}:${citation.chunk_id}`;
+}
+
+// Resolve only against the citations of the answer whose drawer is mounted.
+export function selectedCitation(citations: MessageCitation[], key: string | null): MessageCitation | undefined {
+  return key === null ? undefined : citations.find((citation) => citationKey(citation) === key);
+}
+
+export function verifiedCitationExcerpt(items: Array<{ id: string; content: string }>, chunkId: string): string | null {
+  const chunk = items.find((item) => item.id === chunkId);
+  return chunk ? citationExcerpt(chunk.content) : null;
+}
 
 export type Persistence = "saved" | "not-saved" | "unknown";
+export type SubmissionPhase = "queued" | "sending" | "stopping" | "reconciling" | "settled";
+
+export function isClientAbort(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+export function canStartSubmission(phase?: SubmissionPhase): boolean {
+  return phase === undefined || phase === "settled";
+}
 
 export function messageRequest(content: string, documentIds: string[]): CreateMessageRequest {
   return { content: content.trim(), top_k: 5, ...(documentIds.length ? { document_ids: [...documentIds] } : {}) };

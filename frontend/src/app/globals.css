@@ -17,10 +17,12 @@
   --sidebar-collapsed: 64px;
   --header-height: 64px;
   --radius: 10px;
+  --question-surface: #dbeafe;
 }
 
 * { box-sizing: border-box; }
 html, body { min-height: 100%; }
+html { scrollbar-gutter: stable; }
 body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-inter), Inter, Arial, sans-serif; }
 button, input, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
@@ -111,8 +113,8 @@ button { cursor: pointer; }
 .conversation-page { min-height: calc(100vh - var(--header-height)); display: grid; grid-template-rows: 1fr auto; gap: 24px; padding: 28px 24px 20px; }
 .message-history { width: min(800px, 100%); display: grid; align-content: start; gap: 20px; margin: 0 auto; }
 .message { max-width: 82%; line-height: 1.65; }
-.message-user { justify-self: end; padding: 12px 16px; border-radius: 14px 14px 3px 14px; background: #dbeafe; }
-.message-assistant { justify-self: start; width: 100%; max-width: 100%; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.message-user { justify-self: end; width: fit-content; max-width: 85%; padding: 12px 16px; border-radius: 18px 18px 4px 18px; background: var(--question-surface); }
+.message-assistant { justify-self: start; width: 100%; max-width: 100%; padding: 8px 0; }
 .message-role { margin-bottom: 5px; color: var(--muted); font-size: 11px; font-weight: 750; text-transform: uppercase; }
 .message-content { color: var(--foreground); white-space: pre-wrap; }
 .grounding-label { display: inline-flex; margin-top: 12px; padding: 3px 8px; border-radius: 999px; color: var(--muted); background: #f1f5f9; font-size: 10px; font-weight: 700; }
@@ -184,6 +186,50 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }th { padding: 
 .source-preview .message-content { margin-bottom: 12px; }
 .source-close { margin-left: 12px; border: 0; background: transparent; color: var(--primary); cursor: pointer; }
 .message-content { overflow-wrap: anywhere; }
+.message-assistant .message-content { font-size: 16px; line-height: 1.75; }
+.message-user .message-role { color: var(--secondary); }
+.chat-composer .send-button { width: 44px; height: 44px; border-radius: 50%; }
+.composer-wrap > p { font-size: 12px; }
+.answer-sources-button { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 12px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 24px; color: var(--primary); background: var(--surface); font-size: 13px; font-weight: 600; }
+.answer-sources-button:hover { background: var(--question-surface); }
+.answer-sources-panel { position: fixed; inset: 0 0 0 auto; width: min(460px, 100%); max-width: 100%; height: 100dvh; max-height: 100dvh; margin: 0 0 0 auto; padding: 24px; border: 0; border-left: 1px solid var(--border); background: var(--surface); color: var(--foreground); overflow-y: auto; overscroll-behavior: contain; animation: sources-enter 180ms ease-out; }
+.answer-sources-panel::backdrop { background: rgba(15,23,42,.35); }
+.sources-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.sources-panel-heading h2 { margin: 0; font-size: 20px; }
+.sources-panel-heading .icon-button { width: 44px; height: 44px; }
+.sources-panel-list { display: grid; gap: 20px; margin-top: 24px; }
+.sources-panel-list .citation-button { width: 100%; min-height: 44px; padding: 12px; }
+.sources-panel-list .source-preview { line-height: 1.6; }
+.sync-retry { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; color: var(--secondary); font-size: 13px; }
+.source-list-entry { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.source-list-entry span { min-width: 0; }
+.source-list-entry small { display: block; margin-top: 6px; color: var(--secondary); }
+.source-list-entry svg { flex-shrink: 0; }
+.sources-back { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 16px; padding: 8px 0; color: var(--primary); background: transparent; border: 0; }
+.source-detail-view h3 { margin: 16px 0 8px; font-size: 18px; line-height: 1.5; overflow-wrap: anywhere; }
+.citation-detail { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.citation-detail > p { color: var(--secondary); }
+.citation-detail .message-content { margin: 20px 0; font-size: 16px; }
+.full-document-link { display: inline-block; margin-top: 16px; color: var(--secondary); text-decoration: underline; text-underline-offset: 3px; font-size: 13px; }
+.answer-sources-panel:has(.source-detail-view) { display: flex; flex-direction: column; overflow: hidden; }
+.source-detail-view { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.source-detail-view > h3 { max-height: 18dvh; overflow: auto; flex-shrink: 0; }
+.sources-panel-heading, .sources-back { flex-shrink: 0; }
+.document-source-reader { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.reader-identity { display: grid; gap: 4px; max-height: 16dvh; overflow: auto; padding: 8px 0 12px; font-size: 13px; overflow-wrap: anywhere; flex-shrink: 0; }
+.reader-identity span { color: var(--secondary); }
+.reader-viewport { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 8px; border-block: 1px solid var(--border); }
+.reader-chunk { padding: 16px 12px; margin: 8px 0; border-left: 3px solid transparent; overflow-wrap: anywhere; }
+.reader-chunk h4 { margin: 0 0 10px; color: var(--secondary); font-size: 12px; }
+.reader-text { font-size: 16px; line-height: 1.75; white-space: pre-wrap; }
+.reader-evidence { border-left-color: var(--grounded); background: var(--question-surface); border-radius: 6px; }
+.reader-evidence h4 { color: var(--primary); }
+.reader-pagination { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; flex-shrink: 0; }
+.reader-pagination .button { padding: 6px 8px; font-size: 12px; }
+.reader-pagination > span { width: 100%; color: var(--secondary); font-size: 12px; }
+.reader-state { padding: 20px 0; color: var(--secondary); overflow-y: auto; }
+@keyframes sources-enter { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+@media (max-width: 600px) { .answer-sources-panel { width: 100%; padding: 20px 16px; } }
 .chat-composer textarea { min-width: 0; }
 
 /* Phase 8F: shared interaction states and bounded layouts. */

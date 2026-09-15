@@ -1,5 +1,7 @@
 # LEGAL AI INTELLIGENCE PLATFORM
 
+**Pre-8G Chat UX refinement:** frontend-only Stop waiting with draft copies and history reconciliation, per-answer Sources drawer, and cleaner user/assistant hierarchy are implemented. Owner manual acceptance and owner-local build remain pending. No backend cancellation or streaming; Phase 8G has not started. See [current validation](PRE_8G_CHAT_UX_VALIDATION.md).
+
 Snapshot: 2026-09-14, inspected repository HEAD `7a675b7` (`feat: add conversations workspace and history`). Phase PASS labels below reflect the project owner's supplied history, not a fresh runtime certification during this documentation task.
 
 ## Purpose and workflow
