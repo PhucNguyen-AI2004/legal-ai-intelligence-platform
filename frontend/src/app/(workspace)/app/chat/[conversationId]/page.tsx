@@ -5,5 +5,5 @@ export const metadata: Metadata = { title: "Hội thoại" };
 
 export default async function ConversationPage({ params }: { params: Promise<{ conversationId: string }> }) {
   const { conversationId } = await params;
-  return <ConversationDetailWorkspace conversationId={conversationId} />;
+  return <ConversationDetailWorkspace key={conversationId} conversationId={conversationId} />;
 }

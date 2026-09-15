@@ -1,17 +1,19 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { createConversation, deleteConversation, listConversations, updateConversation } from "@/lib/conversations/conversation-api";
 import { conversationErrorMessage } from "@/lib/conversations/conversation-utils";
-import type { ConversationSummary } from "@/lib/conversations/types";
+import type { ConversationSummary, CreateMessageRequest } from "@/lib/conversations/types";
+import { useConversationMessages } from "./use-conversation-messages";
 
 const PAGE_SIZE = 20;
 type Dialog = { kind: "rename" | "delete"; conversation: ConversationSummary } | null;
 
-interface ConversationContextValue {
+interface ConversationContextValue extends ReturnType<typeof useConversationMessages> {
   conversations: ConversationSummary[];
   total: number;
   isLoading: boolean;
@@ -19,7 +21,7 @@ interface ConversationContextValue {
   isCreating: boolean;
   error: string | null;
   feedback: string | null;
-  createNew: () => Promise<void>;
+  createNew: (firstMessage?: CreateMessageRequest) => Promise<boolean>;
   loadMore: () => Promise<void>;
   retry: () => Promise<void>;
   upsert: (conversation: ConversationSummary) => void;
@@ -46,12 +48,26 @@ export function ConversationProvider({ children }: Readonly<{ children: React.Re
   const [dialog, setDialog] = useState<Dialog>(null);
   const [isMutating, setIsMutating] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const creating = useRef(false);
+  const creationDestination = useRef<string | null>(null);
+  const listRevision = useRef(0);
 
   const loadFirstPage = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await listConversations(PAGE_SIZE, 0);
+      let revision = listRevision.current;
+      let response = await listConversations(PAGE_SIZE, 0);
+      // A first-send create can finish while the initial list is loading.
+      // Refetch once instead of overwriting its new sidebar entry with old data.
+      if (revision !== listRevision.current) {
+        revision = listRevision.current;
+        response = await listConversations(PAGE_SIZE, 0);
+      }
+      if (revision !== listRevision.current) {
+        setError("Danh sách vừa thay đổi. Vui lòng tải lại để cập nhật đầy đủ.");
+        return;
+      }
       setConversations(response.items);
       setTotal(response.total);
     } catch (caught) {
@@ -64,11 +80,27 @@ export function ConversationProvider({ children }: Readonly<{ children: React.Re
   useEffect(() => { queueMicrotask(() => void loadFirstPage()); }, [loadFirstPage]);
 
   const upsert = useCallback((conversation: ConversationSummary) => {
+    listRevision.current += 1;
     setConversations((current) => newestFirst([conversation, ...current.filter((item) => item.id !== conversation.id)]));
   }, []);
+  const messages = useConversationMessages(upsert);
+  const { submissions, submitMessage } = messages;
 
-  async function createNew() {
-    if (isCreating) return;
+  useEffect(() => {
+    // Sending begins only after the destination is the actual URL. The queued
+    // request is claimed synchronously by submitMessage, including in Strict Mode.
+    const id = pathname.startsWith("/app/chat/") ? pathname.slice("/app/chat/".length) : null;
+    if (id && submissions[id]?.phase === "queued") queueMicrotask(() => void submitMessage(id));
+    if (pathname === creationDestination.current) {
+      creating.current = false;
+      creationDestination.current = null;
+      queueMicrotask(() => setIsCreating(false));
+    }
+  }, [pathname, submissions, submitMessage]);
+
+  async function createNew(firstMessage?: CreateMessageRequest) {
+    if (creating.current) return false;
+    creating.current = true;
     setIsCreating(true);
     setError(null);
     try {
@@ -76,11 +108,15 @@ export function ConversationProvider({ children }: Readonly<{ children: React.Re
       upsert(created);
       setTotal((value) => value + 1);
       setFeedback("Đã tạo cuộc trò chuyện.");
-      router.push(`/app/chat/${created.id}`);
+      if (firstMessage) messages.queueMessage({ ...created, messages: [] }, firstMessage);
+      creationDestination.current = `/app/chat/${created.id}`;
+      router.push(creationDestination.current);
+      return true;
     } catch (caught) {
       setError(conversationErrorMessage(caught, "create"));
-    } finally {
+      creating.current = false;
       setIsCreating(false);
+      return false;
     }
   }
 
@@ -89,7 +125,12 @@ export function ConversationProvider({ children }: Readonly<{ children: React.Re
     setIsLoadingMore(true);
     setError(null);
     try {
+      const revision = listRevision.current;
       const response = await listConversations(PAGE_SIZE, conversations.length);
+      if (revision !== listRevision.current) {
+        setError("Danh sách vừa thay đổi. Vui lòng tải lại trước khi xem thêm.");
+        return;
+      }
       setConversations((current) => newestFirst([...current, ...response.items.filter((next) => !current.some((item) => item.id === next.id))]));
       setTotal(response.total);
     } catch (caught) {
@@ -118,10 +159,16 @@ export function ConversationProvider({ children }: Readonly<{ children: React.Re
   async function confirmDelete() {
     if (!dialog || dialog.kind !== "delete") return;
     const target = dialog.conversation;
+    if (messages.isSending(target.id)) {
+      setDialogError("Vui lòng đợi tin nhắn gửi xong trước khi xóa hội thoại.");
+      return;
+    }
     setIsMutating(true);
     setDialogError(null);
     try {
       await deleteConversation(target.id);
+      listRevision.current += 1;
+      messages.forget(target.id);
       setConversations((current) => current.filter((item) => item.id !== target.id));
       setTotal((value) => Math.max(0, value - 1));
       setFeedback("Đã xóa cuộc trò chuyện.");
@@ -136,7 +183,7 @@ export function ConversationProvider({ children }: Readonly<{ children: React.Re
 
   const value: ConversationContextValue = {
     conversations, total, isLoading, isLoadingMore, isCreating, error, feedback,
-    createNew, loadMore, retry: loadFirstPage, upsert,
+    createNew, loadMore, retry: loadFirstPage, upsert, ...messages,
     requestRename: (conversation) => { setDialog({ kind: "rename", conversation }); setDialogError(null); },
     requestDelete: (conversation) => { setDialog({ kind: "delete", conversation }); setDialogError(null); },
   };
@@ -153,9 +200,9 @@ export function useConversations() {
 function RenameDialog({ conversation, busy, error, onClose, onSubmit }: { conversation: ConversationSummary; busy: boolean; error: string | null; onClose: () => void; onSubmit: (title: string) => void }) {
   const [title, setTitle] = useState(conversation.title);
   const cleanTitle = title.trim();
-  return <div className="dialog-backdrop" role="presentation"><section className="dialog-card" role="dialog" aria-modal="true" aria-labelledby="rename-conversation-title"><h2 id="rename-conversation-title">Đổi tên hội thoại</h2><form onSubmit={(event) => { event.preventDefault(); if (cleanTitle) onSubmit(cleanTitle); }}><Input autoFocus label="Tên hội thoại" value={title} maxLength={255} onChange={(event) => setTitle(event.target.value)} />{error && <p className="form-alert form-error" role="alert">{error}</p>}<div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose} disabled={busy}>Hủy</Button><Button type="submit" disabled={busy || !cleanTitle}>{busy ? "Đang lưu..." : "Lưu"}</Button></div></form></section></div>;
+  return <Modal labelledBy="rename-conversation-title" busy={busy} onClose={onClose}><h2 id="rename-conversation-title">Đổi tên hội thoại</h2><form onSubmit={(event) => { event.preventDefault(); if (cleanTitle && !busy) onSubmit(cleanTitle); }}><Input autoFocus disabled={busy} label="Tên hội thoại" value={title} maxLength={255} onChange={(event) => setTitle(event.target.value)} />{error && <p className="form-alert form-error" role="alert">{error}</p>}<div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose} disabled={busy}>Hủy</Button><Button type="submit" disabled={busy || !cleanTitle}>{busy ? "Đang lưu..." : "Lưu"}</Button></div></form></Modal>;
 }
 
 function DeleteDialog({ conversation, busy, error, onClose, onConfirm }: { conversation: ConversationSummary; busy: boolean; error: string | null; onClose: () => void; onConfirm: () => void }) {
-  return <div className="dialog-backdrop" role="presentation"><section className="dialog-card" role="alertdialog" aria-modal="true" aria-labelledby="delete-conversation-title"><h2 id="delete-conversation-title">Xóa hội thoại?</h2><p className="dialog-document-name">{conversation.title}</p><p>Toàn bộ lịch sử tin nhắn của hội thoại này sẽ bị xóa. Hành động này không thể hoàn tác.</p>{error && <p className="form-alert form-error" role="alert">{error}</p>}<div className="dialog-actions"><Button autoFocus type="button" variant="secondary" onClick={onClose} disabled={busy}>Hủy</Button><Button type="button" className="button-danger" onClick={onConfirm} disabled={busy}>{busy ? "Đang xóa..." : "Xóa hội thoại"}</Button></div></section></div>;
+  return <Modal alert labelledBy="delete-conversation-title" busy={busy} onClose={onClose}><h2 id="delete-conversation-title">Xóa hội thoại?</h2><p className="dialog-document-name">{conversation.title}</p><p>Toàn bộ lịch sử tin nhắn của hội thoại này sẽ bị xóa. Hành động này không thể hoàn tác.</p>{error && <p className="form-alert form-error" role="alert">{error}</p>}<div className="dialog-actions"><Button autoFocus type="button" variant="secondary" onClick={onClose} disabled={busy}>Hủy</Button><Button type="button" className="button-danger" onClick={onConfirm} disabled={busy}>{busy ? "Đang xóa..." : "Xóa hội thoại"}</Button></div></Modal>;
 }

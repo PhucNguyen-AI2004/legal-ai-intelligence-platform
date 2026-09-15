@@ -15,17 +15,17 @@ Status baseline supplied by the project owner, reconciled with source on 2026-09
 | 8B | Completed / PASS | Frontend authentication |
 | 8C | Completed / PASS | Document workspace |
 | 8D | Completed / PASS | Conversation CRUD and read-only history workspace |
-| **8E** | **NEXT — NOT IMPLEMENTED** | **Chat + RAG + Citations frontend integration** |
-| 8F | Planned | Frontend polish and regression |
+| **8E** | **Completed / owner-manually accepted** | **Chat + RAG + Citations frontend integration** |
+| 8F | Implemented; validation incomplete, not PASS | Frontend polish and regression; see PHASE_8F_VALIDATION.md |
 | 8G | Deferred | Admin dashboard |
 | 9 | Planned | Production engineering: background work, logging, rate limits, testing/hardening |
 | 10 | Planned | Deployment: CI/CD, production configuration, portfolio packaging |
 
 ## Phase 8E boundary
 
-**8E HAS NOT BEEN IMPLEMENTED.** Its planned scope is sending user messages, per-message selected document_ids, multi-turn interaction, grounded assistant responses, citations, clickable citation/source UX, and loading/error/no-context states. Backend Phase 7 messaging and Phase 8D saved citation markers already exist; they do not mean frontend 8E is complete.
+**The owner confirmed 8E manual acceptance in the explicit 8F task.** [Phase 8E validation](PHASE_8E_VALIDATION.md) retains historical results. Phase 8F owner-local automated validation and manual regression both PASS; Phase 8F is owner accepted.
 
-Starting 8E requires an explicit user task. Inspect backend routes/schemas and current services before integrating. Complete automated validation, manual integration testing, and Git review before claiming PASS. Commit/push only when explicitly requested. Never automatically begin 8F or admin work afterward.
+Phase 8F is complete and owner accepted. Final Git review and commit remain before starting Phase 8G. Never automatically begin admin 8G. Commit/push only when requested. Never automatically begin admin 8G.
 
 ## Optional later work
 

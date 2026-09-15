@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { ACCEPTED_DOCUMENTS, MAX_UPLOAD_BYTES, documentErrorMessage } from "@/lib/documents/document-utils";
 import { uploadDocument } from "@/lib/documents/document-api";
 
@@ -34,19 +35,17 @@ export function UploadDocumentDialog({ onClose, onUploaded }: { onClose: () => v
   }
 
   return (
-    <div className="dialog-backdrop" role="presentation">
-      <section className="dialog-card upload-dialog" role="dialog" aria-modal="true" aria-labelledby="upload-title">
+      <Modal className="dialog-card upload-dialog" labelledBy="upload-title" busy={isUploading} onClose={onClose}>
         <h2 id="upload-title">Tải tài liệu lên</h2>
         <p>Hỗ trợ PDF, DOCX và TXT. Dung lượng tối đa 20 MB.</p>
         <form className="upload-form" onSubmit={submit}>
-          <input ref={fileInput} className="sr-only" id="document-file" type="file" accept={ACCEPTED_DOCUMENTS} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-          <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()} disabled={isUploading}><Upload size={17} /> {file ? file.name : "Chọn tệp"}</Button>
+          <input ref={fileInput} hidden aria-label="Tệp tài liệu" id="document-file" type="file" accept={ACCEPTED_DOCUMENTS} disabled={isUploading} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+          <Button autoFocus type="button" variant="secondary" onClick={() => fileInput.current?.click()} disabled={isUploading}><Upload size={17} /> <span>{file ? file.name : "Chọn tệp"}</span></Button>
           <Input label="Tiêu đề (không bắt buộc)" name="title" value={title} maxLength={255} onChange={(event) => setTitle(event.target.value)} disabled={isUploading} />
           <label className="field" htmlFor="document-description"><span className="field-label">Mô tả (không bắt buộc)</span><textarea id="document-description" value={description} maxLength={5000} onChange={(event) => setDescription(event.target.value)} disabled={isUploading} /></label>
           <p className={`form-alert form-error${error ? "" : " form-alert-empty"}`} role={error ? "alert" : "status"} aria-live="polite">{error ?? ""}</p>
           <div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose} disabled={isUploading}>Hủy</Button><Button type="submit" disabled={isUploading}>{isUploading ? "Đang tải lên..." : "Tải tài liệu lên"}</Button></div>
         </form>
-      </section>
-    </div>
+      </Modal>
   );
 }

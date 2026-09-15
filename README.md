@@ -1,5 +1,7 @@
 # Legal AI Intelligence Platform
 
+Current frontend status: Phase 8E is owner-manually accepted. Phase 8F polish is implemented with validation incomplete; see [Phase 8F validation](docs/PHASE_8F_VALIDATION.md). Earlier phase descriptions below are historical.
+
 ## Project overview
 
 Dự án portfolio hướng tới vị trí Fresher/Junior AI Engineer hoặc Data Engineer.
@@ -1436,3 +1438,7 @@ streaming, frontend, agents, reranker/hybrid search.
 Với database đã khởi tạo, đổi password bằng SQL có kiểm soát hoặc giữ cấu hình
 cũ. `docker compose down -v` sẽ **xóa dữ liệu volume**; chỉ dùng khi chủ động muốn
 reset toàn bộ database development.
+
+## Phase 8E: Chat integration (owner-manually accepted)
+
+The frontend now sends messages through the existing Phase 7 endpoint, selects evidence documents per message, reloads authoritative history after success/failure, and opens persisted citations as live chunk previews. All-library scope omits document_ids. Failed sends require history review before composing a new message. This supersedes historical read-only frontend descriptions above. The owner confirmed 8E manual acceptance in the 8F task. See [historical validation](docs/PHASE_8E_VALIDATION.md) and [current 8F validation](docs/PHASE_8F_VALIDATION.md). No backend contracts changed.

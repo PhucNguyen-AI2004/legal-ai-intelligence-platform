@@ -25,7 +25,7 @@ storage/*
 backups/
 frontend/node_modules/
 frontend/.next/
-frontend/.next-phase8a-build/
+frontend/.next-*/
 frontend/out/
 frontend/.env.local
 frontend/*.tsbuildinfo

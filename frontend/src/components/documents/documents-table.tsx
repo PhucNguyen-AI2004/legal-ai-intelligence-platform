@@ -14,12 +14,12 @@ export function DocumentsTable({ documents, busy, onProcess, onIndex, onDelete }
   onDelete: (document: DocumentRecord) => void;
 }) {
   return (
-    <div className="table-surface">
+    <div className="table-surface" role="region" aria-label="Danh sách tài liệu, cuộn ngang để xem thêm" tabIndex={0}>
       <table>
         <thead><tr><th>Tên tài liệu</th><th>Loại file</th><th>Trạng thái xử lý</th><th>Trạng thái lập chỉ mục</th><th>Ngày tải lên</th><th>Thao tác</th></tr></thead>
         <tbody>{documents.map((document) => (
           <tr key={document.id}>
-            <td><Link className="document-link" href={`/app/documents/${document.id}`}>{document.title}</Link><small>{document.original_filename}</small></td>
+            <td><Link title={document.title} className="document-link" href={`/app/documents/${document.id}`}>{document.title}</Link><small title={document.original_filename}>{document.original_filename}</small></td>
             <td>{document.file_type.toUpperCase()}</td>
             <td><StatusBadge status={document.status} kind="processing" /></td>
             <td><StatusBadge status={document.embedding_status} kind="embedding" /></td>

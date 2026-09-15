@@ -43,7 +43,7 @@ Compose persists `postgres_data`, `document_storage`, and `model_cache`. Local s
 | 8C Documents | PASS | Real upload/list/detail/delete/process/index/chunks, pagination and request states |
 | 8D Conversations | PASS | Real sidebar CRUD, direct URL history, rename/delete, loaded-title search, pagination, responsive layout |
 
-Recent history corroborates the sequence: `21ade67` RAG, `052fd8d` multi-turn, `abfdab9` 8A, `85eec92` 8B, `22c29a0` 8C, `7a675b7` 8D. Phase 8D renders persisted history and citation markers read-only; its composer cannot send messages. **8E HAS NOT BEEN IMPLEMENTED.** See [ROADMAP](ROADMAP.md).
+Recent history corroborates the sequence: `21ade67` RAG, `052fd8d` multi-turn, `abfdab9` 8A, `85eec92` 8B, `22c29a0` 8C, `7a675b7` 8D. Phase 8E enables sending, per-message selection, reconciliation and live citation previews. The owner confirmed manual acceptance in the explicit 8F task. Phase 8F polish is implemented and owner accepted. Owner-local lint, typecheck, 12/12 helper tests, production build, and manual regression all PASS. The remaining Codex sandbox Node EPERM is an execution-environment limitation, not an application defect. See [Phase 8F validation](PHASE_8F_VALIDATION.md).
 
 ## UX direction
 
@@ -51,10 +51,10 @@ Professional legal SaaS with a light theme, restrained navy/indigo, high readabi
 
 ## Source reconciliation and caveats
 
-- README's opening current-phase section and a later summary still say frontend is absent, despite its 8A–8D sections and actual frontend. These are stale; README was left unchanged by this task.
+- README's opening current-phase section and a later summary still say frontend is absent. These are historical claims; its Phase 8E addendum and current source supersede them.
 - Owner-reported PASS history is broader than README's explicit manual confirmation of Phases 1–5. No historical test counts or fresh PASS results are inferred from commits.
 - The grounded-only principle is stronger than current enforcement: `app/services/rag.py` and `chat.py` return generated text with `grounded=false`, empty citations when no citation markers are present. Invalid references fail closed. Citation validation checks reference membership, not semantic support for every claim. No-context fallback text is currently fixed Vietnamese, although answer prompts request the user's language. These are documented limitations, not fixes in this task.
-- Conversation search filters loaded sidebar titles locally; it is not a backend-wide search endpoint. Saved citation markers already render, but clickable source UX and sending remain 8E work.
-- ESLint and Git ignore `.next` and the specific `.next-phase8a-build` directory, not every `.next-*` variant. Desired general exclusion remains a future scoped fix.
+- Conversation search filters loaded sidebar titles locally; it is not a backend-wide search endpoint. Saved citations now open live chunk previews; missing or changed sources show an unavailable state.
+- Phase 8F generalizes frontend ESLint/Git exclusions to `.next-*` while retaining `.next` and node_modules exclusions. This is tooling hygiene, not a trace-lock workaround.
 - Initial working tree contained 213 pre-existing tracked deletions under `.pytest_tmp/`, `.pytest_tmp2/`, and `.pytest_tmp3/` (71 each). Preserve them; ignored files can remain tracked. The tracked SQL backup also remains untouched.
 - Prior Windows pytest permission issues and Docker/WSL/overlayfs incident are owner-provided operational history, not independently reproduced here.

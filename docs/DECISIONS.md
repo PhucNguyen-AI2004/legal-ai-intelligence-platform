@@ -1,6 +1,6 @@
 # Architecture decisions
 
-These notes capture the rationale for existing choices and owner-specified constraints as of Phase 8D; they are not newly implemented changes. See ARCHITECTURE.md for source locations and PROJECT_CONTEXT.md for enforcement limitations.
+These notes capture existing choices and owner-specified constraints, preserved by Phase 8E frontend integration. See ARCHITECTURE.md for source locations and PROJECT_CONTEXT.md for enforcement limitations.
 
 ## ADR-01 — PostgreSQL and pgvector semantic search
 

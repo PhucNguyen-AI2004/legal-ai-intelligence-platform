@@ -52,13 +52,13 @@ Scripts come from `frontend/package.json`; typecheck runs TypeScript without inc
 - Backend RAG/multi-turn: with safe test documents and configured provider/model, verify first-turn raw query, follow-up rewrite, per-message scope changes, omitted scope without inheritance, relevant citations, no-context and provider failures. Never paste tokens or sensitive legal documents into reports. Account for persisted user messages after a provider failure.
 - Responsive UX: expanded/collapsed desktop sidebar and mobile drawer; readable document/history views.
 
-Frontend message sending and clickable sources are future 8E checks, only after that phase is explicitly authorized and implemented. Automated tests never replace these manual integration checks.
+Phase 8E message sending and clickable sources are owner-manually accepted. Use [the Phase 8F checklist](PHASE_8F_VALIDATION.md) for current regression and [Phase 8E](PHASE_8E_VALIDATION.md) for detailed historical scenarios. The composer is enabled, superseding the historical 8D check above. Helpers run with `node --experimental-strip-types --test tests/message-flow.test.mjs` from frontend. Use `npm.cmd` if PowerShell blocks npm.ps1. Automated tests do not replace manual integration.
 
 ## Windows and generated files
 
 For Next.js EPERM trace-file locks: stop the relevant `npm run dev` process, close holders of `.next`, remove stale generated `.next` only when necessary and after verifying its exact project path, then rerun build. Do not change source to hide a filesystem lock or edit generated framework files.
 
-Required lint exclusions are `.next/`, `.next-*/`, and `node_modules/`. Current `frontend/eslint.config.mjs` excludes `.next/**`, `.next-phase8a-build/**`, and node_modules, but does not cover arbitrary `.next-*` variants. `.gitignore` similarly lists the specific alternate build directory. Document this gap; changes require a separate authorized scope. Never globally disable ESLint/TypeScript rules.
+Required lint exclusions are `.next/`, `.next-*/`, and `node_modules/`. Phase 8F updates ESLint and Git exclusions to cover arbitrary frontend `.next-*` variants. No generated output is edited or ESLint/TypeScript rule disabled.
 
 For pytest temporary-directory permissions, choose a fresh, dedicated project-local path, for example:
 

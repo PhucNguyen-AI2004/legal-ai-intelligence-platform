@@ -6,7 +6,7 @@ This is **LEGAL AI INTELLIGENCE PLATFORM**, a production-oriented legal document
 
 Read [HANDOFF](docs/HANDOFF.md), [PROJECT_CONTEXT](docs/PROJECT_CONTEXT.md), [ARCHITECTURE](docs/ARCHITECTURE.md), [ROADMAP](docs/ROADMAP.md), [TESTING](docs/TESTING.md), and [DECISIONS](docs/DECISIONS.md). Inspect README.md and the actual implementation before coding. README contains historical sections and stale current-state claims; inspect routes and schemas for contracts rather than guessing.
 
-Completed baseline: Phases 1–7 and 8A–8D, reported PASS by the project owner. Phase 8E Chat + RAG + Citations is NEXT and **HAS NOT BEEN IMPLEMENTED** in the frontend. Backend messaging exists from Phase 7. Do not begin 8E without an explicit task.
+Completed baseline: Phases 1-7 and 8A-8E, owner-reported acceptance. The explicit 8F task confirms 8E manual acceptance. Phase 8F polish is implemented with validation incomplete; see docs/PHASE_8F_VALIDATION.md. Backend messaging remains Phase 7. Do not start 8G without an explicit task.
 
 ## Scope and workflow
 
@@ -55,7 +55,7 @@ Never write secrets into this report. This report is temporary and must not be c
 - Do not modify or delete `backup_before_phase6_fix.sql` automatically; cleanup is a separate explicit task. Do not inspect its contents unnecessarily.
 - A previous Docker Desktop/WSL/overlayfs corruption incident preserved database data. Diagnose first; never casually run `docker compose down -v`, `docker volume prune`, or `docker system prune -a --volumes`. Never destroy database volumes to fix ordinary runtime problems.
 - For Windows EPERM build failures, stop the relevant dev process and release `.next` locks, remove stale generated output only if needed, then rebuild. Do not alter source to conceal a file-lock problem. Verify cleanup paths stay within the intended project directory.
-- Generated `.next/`, `.next-*/`, and `node_modules/` must be excluded from lint; current exclusions are narrower (see TESTING.md). Use a dedicated project-local pytest basetemp if Windows permissions require it.
+- Generated `.next/`, `.next-*/`, and `node_modules/` are excluded from lint (see TESTING.md). Use a dedicated project-local pytest basetemp if Windows permissions require it.
 
 ## Coding philosophy
 

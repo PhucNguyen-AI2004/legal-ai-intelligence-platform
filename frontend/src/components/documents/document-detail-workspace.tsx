@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog";
 import { DocumentActions } from "./document-actions";
+import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { deleteDocument, getDocument, getDocumentChunks, indexDocument, processDocument } from "@/lib/documents/document-api";
 import { documentErrorMessage, formatDate, formatFileSize } from "@/lib/documents/document-utils";
@@ -85,13 +86,13 @@ export function DocumentDetailWorkspace({ documentId }: { documentId: string }) 
   }
 
   if (isLoading) return <div className="page-container detail-skeleton" role="status">Đang tải tài liệu…</div>;
-  if (!document) return <div className="page-container"><Link className="back-link" href="/app/documents"><ArrowLeft size={17} /> Quay lại tài liệu</Link><p className="workspace-notice notice-error" role="alert">{error ?? "Không tìm thấy tài liệu."}</p></div>;
+  if (!document) return <div className="page-container"><Link className="back-link" href="/app/documents"><ArrowLeft size={17} /> Quay lại tài liệu</Link><p className="workspace-notice notice-error" role="alert">{error ?? "Không tìm thấy tài liệu."}</p><Button variant="secondary" onClick={() => void load()}>Thử tải lại</Button></div>;
 
   return (
     <div className="page-container document-detail">
       <Link className="back-link" href="/app/documents"><ArrowLeft size={17} /> Quay lại tài liệu</Link>
       {feedback && <p className="workspace-notice notice-success" role="status">{feedback}</p>}
-      {error && <p className="workspace-notice notice-error" role="alert">{error}</p>}
+      {error && <div className="workspace-notice notice-error" role="alert"><p>{error}</p><Button variant="secondary" disabled={busy !== null} onClick={() => void load()}>Thử tải lại</Button></div>}
       <header className="detail-header">
         <div className="detail-title"><span className="file-icon"><FileText size={24} /></span><div><p className="eyebrow">{document.file_type.toUpperCase()}</p><h1>{document.title}</h1><p>{document.original_filename}</p></div></div>
         <DocumentActions document={document} showView={false} busyAction={busy} onProcess={() => void runAction("process")} onIndex={() => void runAction("index")} onDelete={() => setConfirmingDelete(true)} />

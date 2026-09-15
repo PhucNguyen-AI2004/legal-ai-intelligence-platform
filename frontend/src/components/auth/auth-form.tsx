@@ -18,6 +18,7 @@ export function AuthForm({ mode, registered = false }: { mode: "login" | "regist
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmitting) return;
     setError(null);
     const validationError = validateForm(mode, fullName, email, password);
     if (validationError) {
@@ -46,6 +47,7 @@ export function AuthForm({ mode, registered = false }: { mode: "login" | "regist
       {mode === "register" && <Input label="Họ và tên" name="fullName" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} disabled={isSubmitting} aria-describedby="auth-form-status" />}
       <Input label="Email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} disabled={isSubmitting} placeholder="ban@example.com" aria-describedby="auth-form-status" />
       <Input label="Mật khẩu" name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(event) => setPassword(event.target.value)} disabled={isSubmitting} aria-describedby="auth-form-status" />
+      {mode === "register" && <p className="field-hint">Mật khẩu cần từ 12 đến 128 ký tự.</p>}
       <p id="auth-form-status" className={`form-alert form-error${error ? "" : " form-alert-empty"}`} role={error ? "alert" : "status"} aria-live="polite">{error ?? ""}</p>
       <Button type="submit" className="auth-submit" disabled={isSubmitting}>
         {isSubmitting ? (mode === "login" ? "Đang đăng nhập..." : "Đang tạo tài khoản...") : (mode === "login" ? "Đăng nhập" : "Đăng ký")}

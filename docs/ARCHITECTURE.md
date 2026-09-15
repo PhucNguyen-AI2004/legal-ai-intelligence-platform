@@ -1,6 +1,6 @@
 # Architecture
 
-Source map for the implemented system through Phase 8D. Backend RAG/message APIs exist; frontend message sending is not implemented. Read actual route/schema files before any contract change.
+Source map including owner-accepted Phase 8E. Phase 8F adds a small native Modal component for upload/confirmations and the mobile drawer. Providers, message reconciliation and API contracts remain unchanged. Phase 8F implementation, owner-local automated validation, and owner manual regression are complete and accepted; see PHASE_8F_VALIDATION.md. Read actual routes/schemas before contract changes.
 
 ```mermaid
 flowchart LR
@@ -22,7 +22,7 @@ flowchart LR
     VALIDATE --> DB
 ```
 
-The frontend currently uses auth, document, and conversation CRUD/detail routes. The diagram's backend message path is Phase 7 capability, not an implemented frontend 8E integration.
+The frontend uses auth, document, conversation CRUD/detail and Phase 7 message routes.
 
 ## Backend and database
 
@@ -66,7 +66,7 @@ The backend never inherits document IDs from earlier messages. The request accep
 
 Document components use `lib/documents/document-api.ts` for list/upload/detail/delete/process/index/chunks. Lists use `skip`/`limit`; mutation responses/refetches synchronize authoritative backend state. UI includes pagination, confirmations, chunks, and loading/error states without storage internals or vectors.
 
-`components/conversations/conversation-provider.tsx` centralizes CRUD/list state through `lib/conversations/conversation-api.ts`. The sidebar derives active conversation from the URL, requests 20 items initially using `limit`/`offset`, and filters loaded titles locally. Detail loads persisted messages in sequence order, displaying grounding labels and saved citation markers. `components/chat/chat-composer.tsx` is intentionally disabled. There is no frontend message-send API wrapper or clickable source workflow yet.
+`components/conversations/conversation-provider.tsx` centralizes CRUD/list state through `lib/conversations/conversation-api.ts`. The sidebar derives active conversation from the URL, requests 20 items initially using `limit`/`offset`, and filters loaded titles locally. `/app/chat` renders an immediate composer; the existing createNew flow can queue a first message, navigate, then submit once the created conversation is the URL. `use-conversation-messages.ts` keeps keyed history and submission/recovery state across navigation without an active-ID store. It refetches after every POST attempt and compares new user-message IDs/content to the pre-send history before permitting draft restoration. Composer clears immediately; confirmed saved questions stay empty, uncertain network failures are never automatically restored/retried. An optional source dialog pages 20 documents at a time; each submission snapshots selected IDs then resets to all documents, omitting document_ids. CitationSource fetches on click, verifies live chunk ID, and displays the first non-empty paragraph capped at 280 characters (including ellipsis), without an internal scroll area plus a document-detail link. There are no chunk snapshots or local grounding inference. See [validation limitations](PHASE_8E_VALIDATION.md).
 
 ## API map
 

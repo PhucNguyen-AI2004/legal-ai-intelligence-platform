@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FilePlus2, Filter, Plus, Search } from "lucide-react";
+import { FilePlus2, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
@@ -94,18 +94,17 @@ export function DocumentsWorkspace({ initialFeedback }: { initialFeedback?: stri
     <div className="page-container">
       <PageHeader title="Tài liệu" description="Quản lý tài liệu dùng cho tra cứu và dẫn nguồn."><Button onClick={() => setUploadOpen(true)}><Plus size={17} /> Tải tài liệu lên</Button></PageHeader>
       {feedback && <p className="workspace-notice notice-success" role="status">{feedback}</p>}
-      {error && <p className="workspace-notice notice-error" role="alert">{error}</p>}
+      {error && <div className="workspace-notice notice-error" role="alert"><p>{error}</p><Button variant="secondary" disabled={isLoading || busy !== null} onClick={() => void load(skip)}>Tải lại danh sách</Button></div>}
       <div className="table-toolbar">
-        <Input label="Tìm tài liệu" hideLabel icon={<Search size={17} />} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên tài liệu…" />
-        <Button variant="secondary" disabled><Filter size={17} /> Bộ lọc</Button>
+        <Input label="Tìm tài liệu trên trang hiện tại" hideLabel icon={<Search size={17} />} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm trên trang hiện tại…" />
       </div>
-      {isLoading ? <DocumentListSkeleton /> : documents.length === 0 ? <DocumentEmptyState onUpload={() => setUploadOpen(true)} /> : <>
-        <DocumentsTable documents={visibleDocuments} busy={busy} onProcess={(document) => void mutate(document, "process")} onIndex={(document) => void mutate(document, "index")} onDelete={setDeleteTarget} />
+      {isLoading ? <DocumentListSkeleton /> : documents.length === 0 ? (error ? null : <DocumentEmptyState onUpload={() => setUploadOpen(true)} />) : <>
+        <DocumentsTable documents={visibleDocuments} busy={busy} onProcess={(document) => void mutate(document, "process")} onIndex={(document) => void mutate(document, "index")} onDelete={(document) => { setError(null); setDeleteTarget(document); }} />
         {visibleDocuments.length === 0 && <p className="no-search-results">Không có tài liệu phù hợp với từ khóa.</p>}
         <div className="pagination"><span>Hiển thị {skip + 1}–{Math.min(skip + documents.length, total)} trong {total}</span><div><Button variant="secondary" disabled={skip === 0 || isLoading} onClick={() => void load(Math.max(0, skip - PAGE_SIZE))}>Trước</Button><Button variant="secondary" disabled={skip + PAGE_SIZE >= total || isLoading} onClick={() => void load(skip + PAGE_SIZE)}>Sau</Button></div></div>
       </>}
       {uploadOpen && <UploadDocumentDialog onClose={() => setUploadOpen(false)} onUploaded={uploaded} />}
-      {deleteTarget && <ConfirmDeleteDialog documentTitle={deleteTarget.title} isDeleting={busy?.action === "delete"} onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDelete()} />}
+      {deleteTarget && <ConfirmDeleteDialog error={error} documentTitle={deleteTarget.title} isDeleting={busy?.action === "delete"} onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDelete()} />}
     </div>
   );
 }

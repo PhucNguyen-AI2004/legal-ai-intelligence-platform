@@ -1,5 +1,12 @@
 import { apiRequest } from "@/lib/api/client";
+import type { ConversationMessage, CreateMessageRequest } from "./types";
 import type { ConversationDetail, ConversationListResponse, ConversationSummary, CreateConversationRequest, UpdateConversationRequest } from "./types";
+
+export async function sendMessage(id: string, body: CreateMessageRequest): Promise<ConversationMessage> {
+  const response = await apiRequest<ConversationMessage>(`/conversations/${id}/messages`, { method: "POST", auth: "required", body });
+  if (!response) throw new Error("The message response was empty.");
+  return response;
+}
 
 export async function listConversations(limit = 20, offset = 0): Promise<ConversationListResponse> {
   const response = await apiRequest<ConversationListResponse>(`/conversations?limit=${limit}&offset=${offset}`, { auth: "required" });
@@ -15,7 +22,7 @@ export async function createConversation(title = "Cuộc trò chuyện mới"): 
 }
 
 export async function getConversation(id: string): Promise<ConversationDetail> {
-  const response = await apiRequest<ConversationDetail>(`/conversations/${id}`, { auth: "required" });
+  const response = await apiRequest<ConversationDetail>(`/conversations/${id}`, { auth: "required", cache: "no-store" });
   if (!response) throw new Error("The conversation response was empty.");
   return response;
 }

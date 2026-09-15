@@ -39,3 +39,9 @@ export interface ConversationListResponse {
 
 export interface CreateConversationRequest { title?: string | null; }
 export interface UpdateConversationRequest { title: string; }
+
+export interface CreateMessageRequest {
+  content: string;
+  top_k?: number;
+  document_ids?: string[] | null;
+}
