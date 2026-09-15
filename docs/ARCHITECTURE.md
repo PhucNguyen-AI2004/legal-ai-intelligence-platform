@@ -1,5 +1,9 @@
 # Architecture
 
+## Current Phase 8G status ? 2026-09-16
+
+Phase 8G Admin Dashboard V1 is explicitly authorized and implemented; owner manual acceptance is required. Persisted user/admin roles, explicit promotion CLI, protected read-only metadata APIs and the existing-app Admin Console are added. See [Phase 8G validation](PHASE_8G_VALIDATION.md) for contracts, exact results and remaining checks. Phase 9 and Phase 10 have not started. Earlier phase-gate statements below are historical and superseded by this authorization.
+
 ## Pre-8G Chat UX refinement
 
 The existing message hook now owns AbortControllers for client-only Stop and provider-held editable question copies. Sending/stopping/reconciliation remain separate from composer and transport; Stop never represents server cancellation. A successful history reload and explicit review precede another send. Per-answer Sources drawers reuse native Modal and live CitationSource validation; assistant answers render in flow beside right-aligned user bubbles. Backend, auth, RAG and per-message scope contracts are unchanged. See [implementation, limits and validation](PRE_8G_CHAT_UX_VALIDATION.md). This addendum supersedes older inline-source presentation descriptions below.
@@ -44,7 +48,7 @@ The frontend uses auth, document, conversation CRUD/detail and Phase 7 message r
 | messages | Conversation FK, user/assistant role, sequence, content, grounding and retrieval query; unique conversation/sequence |
 | message_citations | Message/document/chunk FKs, citation index and similarity score; unique message/citation index |
 
-Migration sequence: `0001_create_users` → `0002_create_documents` → `0003_document_processing` → `0004_vector_embeddings` → `0005_conversations_and_messages` (current head). Document deletion cascades to chunks/embeddings and related citation rows. Conversation deletion cascades messages/citations but does not delete source documents. Citations reference live document/chunk rows, not immutable evidence snapshots; deletion or reprocessing can remove citation records while message text remains.
+Migration sequence: `0001_create_users` → `0002_create_documents` → `0003_document_processing` → `0004_vector_embeddings` → `0005_conversations_and_messages` ? `0006_user_roles` (current head). Document deletion cascades to chunks/embeddings and related citation rows. Conversation deletion cascades messages/citations but does not delete source documents. Citations reference live document/chunk rows, not immutable evidence snapshots; deletion or reprocessing can remove citation records while message text remains.
 
 ## Documents, embeddings and search
 
@@ -83,3 +87,13 @@ Document components use `lib/documents/document-api.ts` for list/upload/detail/d
 | Backend messaging | POST /conversations/{id}/messages |
 
 Foreign-resource access uses generic not-found responses where implemented, avoiding ownership disclosure. Inspect schemas for response structures and pagination differences; this map is not a substitute for source contracts.
+
+## Admin Dashboard V1
+
+`User.role` is a non-null string with database default `user` and a check constraint allowing `user` or `admin`. Migration 0006 adds the column to existing users without rebuilding SQLite's referenced user table. PostgreSQL uses an additive column and check constraint. Public registration retains extra-field rejection and cannot set role; UserRead exposes role, including through `/auth/me`.
+
+`require_admin` reuses `get_current_user`, which parses the token and reloads the persisted user. JWT claims and centralized token storage are unchanged. Missing tokens receive 401; authenticated ordinary users receive 403. Promotion uses the explicit idempotent `python -m app.scripts.promote_user --email admin@example.com` operator command; the account must already exist.
+
+The separate `/admin` router exposes overview counts and paginated users/documents. Dedicated allowlisted schemas exclude password hashes, storage filenames/paths, free-form descriptions/errors, document/chunk text, embeddings and message contents. Conversation and message tables contribute counts only. Ordinary owner-scoped routes remain unchanged, even for admins.
+
+`/app/admin`, `/app/admin/users`, and `/app/admin/documents` use the existing workspace and central API client. AuthProvider's `/auth/me` identity controls navigation and the UX guard; the backend remains authoritative. Client views cancel superseded requests and show loading, empty, 403/error and retry states. Users support literal email search; documents support actual processing/indexing status filters. Mobile tables become stacked rows with labels. Keyboard, screen-reader and viewport behavior require owner browser validation.

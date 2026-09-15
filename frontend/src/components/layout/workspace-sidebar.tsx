@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Files, LogOut, MessageSquareText, MoreHorizontal, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Files, LogOut, MessageSquareText, MoreHorizontal, Pencil, Plus, Search, Shield, Trash2, X } from "lucide-react";
+import { isAdmin } from "@/lib/admin/admin-utils";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useConversations } from "@/components/conversations/conversation-provider";
@@ -49,6 +50,7 @@ export function WorkspaceSidebar({ collapsed, mobileOpen, closeMobile }: { colla
       </div>
     </>}
     <nav className="sidebar-navigation"><SidebarItem href="/app/chat" icon={MessageSquareText} label="Hội thoại" active={pathname.startsWith("/app/chat")} collapsed={collapsed} /><SidebarItem href="/app/documents" icon={Files} label="Tài liệu" active={pathname.startsWith("/app/documents")} collapsed={collapsed} /></nav>
+    {isAdmin(user) && <nav aria-label="Quản trị"><SidebarItem href="/app/admin" icon={Shield} label="Admin Console" active={pathname.startsWith("/app/admin")} collapsed={collapsed} /></nav>}
     <div className="sidebar-footer"><div className="profile-summary" title={collapsed ? displayName : undefined}><span>{initial}</span>{!collapsed && <div><strong>{user?.full_name}</strong><small>{user?.email}</small></div>}</div><div className="footer-actions"><IconButton label="Đăng xuất" onClick={logout}><LogOut size={18} /></IconButton></div></div>
   </aside>;
 }

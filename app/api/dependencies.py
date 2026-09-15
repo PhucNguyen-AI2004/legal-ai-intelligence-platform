@@ -44,3 +44,12 @@ def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def require_admin(user: CurrentUser) -> User:
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Administrator access required")
+    return user
+
+
+CurrentAdmin = Annotated[User, Depends(require_admin)]

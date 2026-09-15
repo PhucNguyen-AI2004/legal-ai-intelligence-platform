@@ -20,7 +20,7 @@ def test_migration_downgrade_upgrade_and_metadata_match(db_session):
     assert "conversations" in inspect(connection).get_table_names()
     assert "messages" in inspect(connection).get_table_names()
     assert "message_citations" in inspect(connection).get_table_names()
-    assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005_conversations_and_messages"
+    assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0006_user_roles"
     command.check(config)
 
 

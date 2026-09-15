@@ -73,3 +73,9 @@ Pytest can clear its basetemp directory. Ensure this path is disposable, stays i
 Run `git status` before work, before staging, and again before commit. Review `git diff --stat`, scoped diffs, and `git diff --check`; untracked documentation also requires direct content review because ordinary diff omits it. Stage only reviewed paths when authorized. Exclude secrets, uploads, generated builds/dependencies and test caches. Leave `backup_before_phase6_fix.sql` unchanged; cleanup is a separate explicit task.
 
 For this context-pack task, validate the seven requested Markdown files, their source references, links, phase boundaries and changes relative to initial Git status. No application code changed, so runtime builds/tests and manual product tests are not required to validate this documentation edit and must not be claimed as newly passed. Preserve the pre-existing tracked test-artifact deletions.
+
+## Phase 8G admin validation
+
+See [PHASE_8G_VALIDATION](PHASE_8G_VALIDATION.md) for bootstrap, manual API/browser checks, test evidence and environment limitations. From the root, run `.\.venv\Scripts\python.exe -m pytest -q tests/test_admin.py tests/test_auth.py tests/test_migrations.py --basetemp=.pytest_8g_owner_focused -p no:cacheprovider`, then the full suite with a fresh project-local basetemp. From frontend, run `node --experimental-strip-types --test tests/*.test.mjs` in addition to lint/typecheck/build. After adding routes, `npx next typegen` regenerates stale route types; do not edit generated files manually.
+
+ADMIN ENDPOINT TESTS DO NOT CONSUME LLM API TOKENS.

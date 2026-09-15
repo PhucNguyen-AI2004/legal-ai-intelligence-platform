@@ -1,4 +1,5 @@
 export interface User {
+  role: "user" | "admin";
   id: string;
   email: string;
   full_name: string;

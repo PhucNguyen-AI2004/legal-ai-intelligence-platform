@@ -1,5 +1,6 @@
 from datetime import datetime
 from uuid import UUID
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
 
@@ -46,6 +47,7 @@ class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    role: Literal["user", "admin"]
     email: EmailStr
     full_name: str
     is_active: bool

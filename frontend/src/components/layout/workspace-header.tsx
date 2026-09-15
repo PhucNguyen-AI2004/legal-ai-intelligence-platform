@@ -13,7 +13,7 @@ export function WorkspaceHeader({ collapsed, toggleSidebar, openMobile }: { coll
   const id = pathname.startsWith("/app/chat/") ? pathname.slice("/app/chat/".length).split("/")[0] : null;
   const conversation = conversations.find((item) => item.id === id);
   const isChat = pathname.startsWith("/app/chat");
-  const title = isChat ? conversation?.title ?? "Cuộc trò chuyện mới" : pathname.startsWith("/app/documents") ? "Tài liệu" : "Legal AI";
+  const title = isChat ? conversation?.title ?? "Cuộc trò chuyện mới" : pathname.startsWith("/app/admin") ? "Admin Console" : pathname.startsWith("/app/documents") ? "Tài liệu" : "Legal AI";
 
   return <header className="workspace-header">
     <IconButton className="mobile-menu" label="Mở điều hướng" onClick={openMobile}><Menu size={20} /></IconButton>

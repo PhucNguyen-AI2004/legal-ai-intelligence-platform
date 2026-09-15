@@ -1,6 +1,10 @@
 # Roadmap
 
-**Authorized interim work: Pre-8G Chat UX refinement.** Implemented, owner acceptance pending; see [validation/checklist](PRE_8G_CHAT_UX_VALIDATION.md). This does not renumber phases or start 8G, 9 or 10.
+## Current Phase 8G status ? 2026-09-16
+
+Phase 8G Admin Dashboard V1 is explicitly authorized and implemented; owner manual acceptance is required. Persisted user/admin roles, explicit promotion CLI, protected read-only metadata APIs and the existing-app Admin Console are added. See [Phase 8G validation](PHASE_8G_VALIDATION.md) for contracts, exact results and remaining checks. Phase 9 and Phase 10 have not started. Earlier phase-gate statements below are historical and superseded by this authorization.
+
+**Historical interim work: Pre-8G Chat UX refinement.** Completed and owner accepted; see [validation/checklist](PRE_8G_CHAT_UX_VALIDATION.md). This does not renumber phases or start 8G, 9 or 10.
 
 Status baseline supplied by the project owner, reconciled with source on 2026-09-14. Historical PASS is not a new validation result.
 
@@ -18,8 +22,8 @@ Status baseline supplied by the project owner, reconciled with source on 2026-09
 | 8C | Completed / PASS | Document workspace |
 | 8D | Completed / PASS | Conversation CRUD and read-only history workspace |
 | **8E** | **Completed / owner-manually accepted** | **Chat + RAG + Citations frontend integration** |
-| 8F | Implemented; validation incomplete, not PASS | Frontend polish and regression; see PHASE_8F_VALIDATION.md |
-| 8G | Deferred | Admin dashboard |
+| 8F | PASS — owner accepted | Frontend polish and regression; see PHASE_8F_VALIDATION.md |
+| 8G | PASS — owner accepted | Read-only Admin Dashboard V1 |
 | 9 | Planned | Production engineering: background work, logging, rate limits, testing/hardening |
 | 10 | Planned | Deployment: CI/CD, production configuration, portfolio packaging |
 
@@ -27,7 +31,7 @@ Status baseline supplied by the project owner, reconciled with source on 2026-09
 
 **The owner confirmed 8E manual acceptance in the explicit 8F task.** [Phase 8E validation](PHASE_8E_VALIDATION.md) retains historical results. Phase 8F owner-local automated validation and manual regression both PASS; Phase 8F is owner accepted.
 
-Phase 8F is complete and owner accepted. Final Git review and commit remain before starting Phase 8G. Never automatically begin admin 8G. Commit/push only when requested. Never automatically begin admin 8G.
+Phase 8F is complete and owner accepted. Phase 8G is complete and owner accepted. Phase 9 has not started. Commit/push only when requested. Do not automatically begin Phase 9.
 
 ## Optional later work
 

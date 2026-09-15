@@ -151,7 +151,7 @@ def test_malformed_request_does_not_echo_secrets(client):
 def test_database_unique_index_and_migration(db_session):
     inspector = inspect(db_session.bind)
     assert any(i["name"] == "ix_users_email" and i["unique"] for i in inspector.get_indexes("users"))
-    assert db_session.scalar(text("SELECT version_num FROM alembic_version")) == "0005_conversations_and_messages"
+    assert db_session.scalar(text("SELECT version_num FROM alembic_version")) == "0006_user_roles"
     db_session.add(User(email="unique@example.com", hashed_password="test-only", full_name="One"))
     db_session.commit()
     db_session.add(User(email="unique@example.com", hashed_password="test-only", full_name="Two"))

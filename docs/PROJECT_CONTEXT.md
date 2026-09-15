@@ -1,6 +1,10 @@
 # LEGAL AI INTELLIGENCE PLATFORM
 
-**Pre-8G Chat UX refinement:** frontend-only Stop waiting with draft copies and history reconciliation, per-answer Sources drawer, and cleaner user/assistant hierarchy are implemented. Owner manual acceptance and owner-local build remain pending. No backend cancellation or streaming; Phase 8G has not started. See [current validation](PRE_8G_CHAT_UX_VALIDATION.md).
+## Current Phase 8G status ? 2026-09-16
+
+Phase 8G Admin Dashboard V1 is explicitly authorized and implemented; owner manual acceptance is required. Persisted user/admin roles, explicit promotion CLI, protected read-only metadata APIs and the existing-app Admin Console are added. See [Phase 8G validation](PHASE_8G_VALIDATION.md) for contracts, exact results and remaining checks. Phase 9 and Phase 10 have not started. Earlier phase-gate statements below are historical and superseded by this authorization.
+
+**Pre-8G Chat UX refinement:** frontend-only Stop waiting with draft copies and history reconciliation, per-answer Sources drawer, and cleaner user/assistant hierarchy are implemented. Owner manual acceptance and owner-local validation PASS. No backend cancellation or streaming; Phase 8G has not started. See [current validation](PRE_8G_CHAT_UX_VALIDATION.md).
 
 Snapshot: 2026-09-14, inspected repository HEAD `7a675b7` (`feat: add conversations workspace and history`). Phase PASS labels below reflect the project owner's supplied history, not a fresh runtime certification during this documentation task.
 
