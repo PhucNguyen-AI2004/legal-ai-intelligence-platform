@@ -1,8 +1,8 @@
 # LEGAL AI INTELLIGENCE PLATFORM
 
-## Current Phase 9A status — 2026-09-16
+## Current Phase 9B status — 2026-09-16
 
-Phase 8G is owner accepted. Phase 9A is complete and owner accepted. The backend now has UUID request correlation, JSON application/request logs, DB-only `/ready`, narrowed configured-origin CORS, and API-safe security headers. No Redis, rate limits, workers, queues, deployment configuration, or frontend changes were added. See [Phase 9A validation](PHASE_9A_VALIDATION.md). Phase 9 overall remains in progress.
+Phase 9A is complete and owner accepted. Phase 9B is complete and owner accepted. Redis provides ephemeral atomic fixed-window counters keyed by peer IP for pre-auth endpoints and persisted user UUID for authenticated expensive routes. `/ready` now requires PostgreSQL and Redis. No caching, queues, workers, migrations, distributed sessions, or frontend changes were added. See [Phase 9B validation](PHASE_9B_VALIDATION.md). Phase 9 remains in progress.
 
 **Pre-8G Chat UX refinement:** frontend-only Stop waiting with draft copies and history reconciliation, per-answer Sources drawer, and cleaner user/assistant hierarchy are implemented. Owner manual acceptance and owner-local validation PASS. No backend cancellation or streaming; Phase 8G has not started. See [current validation](PRE_8G_CHAT_UX_VALIDATION.md).
 

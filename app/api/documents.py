@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.document_route import DocumentRoute
 from app.core.config import get_settings
+from app.core.rate_limit import DocumentWriteRateLimit
 from app.models.document import Document
 from app.schemas.document import DocumentList, DocumentRead
 from app.schemas.document_chunk import DocumentChunkList, DocumentChunkRead, DocumentProcessResult
@@ -30,7 +31,7 @@ Storage = Annotated[DocumentStorage, Depends(get_document_storage)]
 
 @router.post("", response_model=DocumentRead, status_code=201)
 def upload_document(
-    user: CurrentUser, db: DbSession, storage: Storage,
+    user: CurrentUser, _rate_limit: DocumentWriteRateLimit, db: DbSession, storage: Storage,
     file: Annotated[UploadFile, File()],
     title: Annotated[str | None, Form(max_length=255)] = None,
     description: Annotated[str | None, Form(max_length=5000)] = None,
@@ -48,7 +49,7 @@ def upload_document(
 
 @router.post("/{document_id}/index", response_model=DocumentIndexResult)
 def index_document(
-    document_id: UUID, user: CurrentUser, db: DbSession,
+    document_id: UUID, user: CurrentUser, _rate_limit: DocumentWriteRateLimit, db: DbSession,
     backend: Annotated[EmbeddingBackend, Depends(get_embedding_service)],
 ) -> DocumentIndexResult:
     try:
@@ -100,7 +101,7 @@ def delete_document(document_id: UUID, user: CurrentUser, db: DbSession, storage
 
 
 @router.post("/{document_id}/process", response_model=DocumentProcessResult)
-def process_document(document_id: UUID, user: CurrentUser, db: DbSession, storage: Storage) -> DocumentProcessResult:
+def process_document(document_id: UUID, user: CurrentUser, _rate_limit: DocumentWriteRateLimit, db: DbSession, storage: Storage) -> DocumentProcessResult:
     try:
         count = document_processing.process_document(document_id, user.id, db, storage, get_settings())
         return DocumentProcessResult(document_id=document_id, chunk_count=count)

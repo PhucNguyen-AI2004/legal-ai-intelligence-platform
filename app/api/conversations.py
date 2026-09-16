@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import CurrentUser, DbSession
+from app.core.rate_limit import AiRateLimit
 from app.core.config import get_settings
 from app.models.message import Message
 from app.models.message_citation import MessageCitation
@@ -100,6 +101,7 @@ def create_message(
     conversation_id: UUID,
     data: ConversationMessageCreate,
     user: CurrentUser,
+    _rate_limit: AiRateLimit,
     db: DbSession,
     response: Response,
     embeddings: Annotated[EmbeddingBackend, Depends(get_embedding_service)],

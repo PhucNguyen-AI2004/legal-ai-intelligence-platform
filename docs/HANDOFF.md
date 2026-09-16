@@ -1,8 +1,8 @@
 # Handoff
 
-## Current Phase 9A status — 2026-09-16
+## Current Phase 9B status — 2026-09-16
 
-Phase 8G is complete and owner accepted. Phase 9A — Production Engineering Foundation is complete and owner accepted. Every HTTP response receives a bounded UUID request ID, request completion logs are structured JSON and content-safe, `/ready` checks database connectivity without LLM calls, CORS is constrained to the configured frontend origin and required methods/headers, and safe API response headers are applied. See [Phase 9A validation](PHASE_9A_VALIDATION.md). Phase 9 overall is in progress; 9B, 9C, 9D, and Phase 10 have not started.
+Phase 9A is complete and owner accepted. Phase 9B is complete and owner accepted. Compose adds internal ephemeral Redis; the backend owns one async Redis client per process; `/ready` requires PostgreSQL and Redis; and atomic fixed-window limits protect auth, AI/search, and expensive document-write routes. Redis failure fails protected routes closed with 503. See [Phase 9B validation](PHASE_9B_VALIDATION.md). Phase 9 remains in progress; 9C, 9D, and Phase 10 have not started.
 
 **Historical interim work: Pre-8G Chat UX refinement.** Completed and owner accepted before Phase 8G; see validation/checklist. All other Pre-8G behavior is owner accepted. Selected citations now open full extracted chunk text inside the existing drawer, with ten-chunk pagination, exact UUID evidence verification, contained focus/scroll and labelled highlighting. No document-workspace navigation or management UI. Stop and source scope are unchanged; backend/API/database unchanged. Lint/typecheck and 30 tests pass; sandbox build EPERM on `.next/trace`, outside-sandbox retry declined. See [reader validation/checklist](PRE_8G_CHAT_UX_VALIDATION.md). No stage/commit/push; Phase 8G has not started.
 

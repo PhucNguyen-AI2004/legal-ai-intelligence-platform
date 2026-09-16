@@ -1,8 +1,8 @@
 # Architecture
 
-## Current Phase 9A status — 2026-09-16
+## Current Phase 9B status — 2026-09-16
 
-Phase 8G is owner accepted. Phase 9A is complete and owner accepted. See [Phase 9A validation](PHASE_9A_VALIDATION.md). Phase 9B–9D and Phase 10 have not started.
+Phase 9A is complete and owner accepted. Phase 9B is complete and owner accepted. See [Phase 9B validation](PHASE_9B_VALIDATION.md). Phase 9C–9D and Phase 10 have not started.
 
 ## Pre-8G Chat UX refinement
 
@@ -37,6 +37,10 @@ The frontend uses auth, document, conversation CRUD/detail and Phase 7 message r
 `app/main.py` registers routers, configured-origin CORS, and the Phase 9A HTTP middleware. Startup verifies database connectivity; `/health` remains lightweight liveness and `/ready` performs a current `SELECT 1` database readiness check. `core/request_context.py` uses a context variable so request correlation is available to application logs and can later be propagated as plain metadata to background work. `core/logging.py` emits standard-library JSON logs. The middleware validates an incoming canonical UUID (36 characters) or generates UUID4, returns `X-Request-ID`, logs method/path/status/duration without query strings or bodies, and adds `nosniff`, frame denial, and no-referrer headers. Unexpected errors are correlated server-side and return only a generic 500 body.
 
 `app/core/config.py` validates settings, including `LOG_LEVEL`; `core/security.py` handles password/JWT primitives. `api/dependencies.py` supplies current identity and request-scoped sessions from `db/session.py`. Synchronous database endpoints execute through FastAPI's thread pool. Services own business operations and explicit transaction boundaries; Alembic runs separately from startup. CORS permits only the configured `FRONTEND_ORIGIN`, required HTTP methods, and `Accept`, `Authorization`, `Content-Type`, and `X-Request-ID`; the response exposes `X-Request-ID` to browsers and does not enable credentials. HSTS and CSP are intentionally absent so local HTTP and Swagger remain valid.
+
+Phase 9B adds an internal `redis:7-alpine` Compose service without a host port or persistence volume. Snapshot/AOF persistence is disabled because counters are short-lived operational controls rather than business data. `core/redis.py` creates one pooled `redis.asyncio` client per application process and closes it during lifespan shutdown. `/health` remains dependency-free liveness; `/ready` now requires both PostgreSQL and Redis.
+
+`core/rate_limit.py` runs a Redis Lua fixed-window operation using Redis server time. It atomically increments the namespaced bucket, sets or repairs TTL, and returns counter plus TTL. Login/registration use actual peer IP and ignore untrusted forwarding headers. Authenticated policies reuse `CurrentUser.id`; JWT parsing is not duplicated. Default 60-second policies are auth 10, AI/search 20, and document write/process/index 10. Exceeded limits return 429 with `Retry-After`, `X-RateLimit-Limit`, and `X-RateLimit-Remaining`; Redis failures return a generic 503 instead of failing open. Health, readiness, documentation, ordinary GETs, and admin reads are not rate-limited.
 
 `app/api/` defines HTTP contracts, `app/schemas/` validation/public responses, `app/models/` relational models, and `app/services/` storage, processing, embeddings, search, RAG and chat behavior.
 

@@ -136,12 +136,26 @@ def document_storage(tmp_path, monkeypatch):
 
 @pytest.fixture
 def client(db_session, db_engine, monkeypatch, document_storage, fake_embeddings):
+    class FakeRedis:
+        async def ping(self):
+            return True
+
+        async def eval(self, *args):
+            return [1, 60]
+
+        async def aclose(self):
+            return None
+
+    async def create_fake_redis(settings):
+        return FakeRedis()
+
     def override_get_db():
         yield db_session
 
     main.app.dependency_overrides[get_db] = override_get_db
     main.app.dependency_overrides[get_embedding_service] = lambda: fake_embeddings
     monkeypatch.setattr(main, "engine", db_engine)
+    monkeypatch.setattr(main, "create_redis_client", create_fake_redis)
     try:
         with TestClient(main.app) as test_client:
             yield test_client

@@ -1,4 +1,14 @@
 services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
   postgres:
     image: pgvector/pgvector:pg16-bookworm
     environment:
@@ -23,6 +33,12 @@ services:
       APP_ENV: ${APP_ENV:?Set APP_ENV in .env}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_TIMEOUT_SECONDS: ${REDIS_TIMEOUT_SECONDS:-2}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-10}
+      AI_RATE_LIMIT: ${AI_RATE_LIMIT:-20}
+      DOCUMENT_WRITE_RATE_LIMIT: ${DOCUMENT_WRITE_RATE_LIMIT:-10}
       SECRET_KEY: ${SECRET_KEY:?Generate SECRET_KEY in .env}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       ALGORITHM: ${ALGORITHM:-HS256}
@@ -52,6 +68,8 @@ services:
       - model_cache:/app/.cache/huggingface
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).close()"]

@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AnyHttpUrl, Field, PostgresDsn, SecretStr, field_validator, model_validator
+from pydantic import AnyHttpUrl, Field, PostgresDsn, RedisDsn, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.embedding_config import EMBEDDING_MODEL, VECTOR_DIMENSION
@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     chat_history_max_messages: int = Field(default=6, ge=0, le=20)
     frontend_origin: AnyHttpUrl = AnyHttpUrl("http://localhost:3000")
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
+    redis_timeout_seconds: float = Field(default=2, ge=0.1, le=10, allow_inf_nan=False)
+    rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
+    auth_rate_limit: int = Field(default=10, ge=1, le=10000)
+    ai_rate_limit: int = Field(default=20, ge=1, le=10000)
+    document_write_rate_limit: int = Field(default=10, ge=1, le=10000)
 
     @field_validator("embedding_dimension")
     @classmethod

@@ -18,6 +18,7 @@ from app.api.admin import router as admin_router
 from app.core.config import get_settings
 from app.core.http_middleware import HttpObservabilityMiddleware
 from app.core.logging import configure_logging
+from app.core.redis import close_redis_client, create_redis_client
 from app.db.session import engine
 
 
@@ -28,11 +29,14 @@ def check_database() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    redis = await create_redis_client(get_settings())
+    app.state.redis = redis
     try:
         # Fail startup if PostgreSQL cannot be reached with these credentials.
         await run_in_threadpool(check_database)
         yield
     finally:
+        await close_redis_client(redis)
         await run_in_threadpool(engine.dispose)
 
 

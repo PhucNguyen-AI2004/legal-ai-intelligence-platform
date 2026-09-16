@@ -92,3 +92,14 @@ docker compose config --quiet
 ```
 
 Then use [PHASE_9A_VALIDATION](PHASE_9A_VALIDATION.md) for Docker, endpoint, auth/admin, CORS, Swagger, request-ID, and log-privacy checks. These tests use no paid LLM provider.
+
+## Phase 9B Redis and rate-limit validation
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q app tests
+.\.venv\Scripts\python.exe -m pytest -q tests/test_rate_limiting.py tests/test_production_foundation.py --basetemp=.pytest_9b_owner_focused -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest -q --basetemp=.pytest_9b_owner_full -p no:cacheprovider
+docker compose config --quiet
+```
+
+Tests inject async Redis doubles; they require no Redis daemon, external network, real embedding model, or paid LLM. Use [PHASE_9B_VALIDATION](PHASE_9B_VALIDATION.md) for Compose health, 429 reset/headers, failure-closed 503 behavior, and readiness checks.
