@@ -19,6 +19,7 @@ from app.core.config import get_settings
 from app.core.http_middleware import HttpObservabilityMiddleware
 from app.core.logging import configure_logging
 from app.core.redis import close_redis_client, create_redis_client
+from app.core.queue import close_queue_runtime, create_queue_runtime
 from app.db.session import engine
 
 
@@ -30,13 +31,16 @@ def check_database() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     redis = await create_redis_client(get_settings())
+    queue_runtime = create_queue_runtime(get_settings())
     app.state.redis = redis
+    app.state.document_queue = queue_runtime.queue
     try:
         # Fail startup if PostgreSQL cannot be reached with these credentials.
         await run_in_threadpool(check_database)
         yield
     finally:
         await close_redis_client(redis)
+        close_queue_runtime(queue_runtime)
         await run_in_threadpool(engine.dispose)
 
 

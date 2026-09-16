@@ -54,6 +54,7 @@ from app.core.config import PROJECT_ROOT, get_settings
 from app.db.session import get_db
 from app.core.embedding_config import EMBEDDING_MODEL, VECTOR_DIMENSION
 from app.services.embeddings import EmbeddingService, get_embedding_service
+from app.services import document_queue
 
 
 # Test-only emulation. Production compiles <=> and runs cosine in PostgreSQL.
@@ -149,6 +150,44 @@ def client(db_session, db_engine, monkeypatch, document_storage, fake_embeddings
     async def create_fake_redis(settings):
         return FakeRedis()
 
+    class FakeJob:
+        id = "test-document-job"
+
+    class FakeQueue:
+        def enqueue(self, function, document_id, request_id, **kwargs):
+            from uuid import UUID
+            from app.models.document import Document
+            from app.services.document_storage import DocumentStorage
+            from app.services.document_processing import process_document
+            from app.services.document_indexing import index_document
+
+            document = db_session.get(Document, UUID(document_id))
+            try:
+                if function.endswith("process_document_job"):
+                    process_document(
+                        document.id, document.owner_id, db_session,
+                        DocumentStorage(get_settings()), get_settings(), already_claimed=True,
+                    )
+                else:
+                    index_document(
+                        document.id, document.owner_id, db_session, fake_embeddings,
+                        already_claimed=True,
+                    )
+            except Exception:
+                # The production worker persists the safe failure and does not
+                # turn an accepted enqueue response into a synchronous error.
+                pass
+            return FakeJob()
+
+    class FakeQueueRuntime:
+        queue = FakeQueue()
+
+    def create_fake_queue(settings):
+        return FakeQueueRuntime()
+
+    def close_fake_queue(runtime):
+        return None
+
     def override_get_db():
         yield db_session
 
@@ -156,6 +195,9 @@ def client(db_session, db_engine, monkeypatch, document_storage, fake_embeddings
     main.app.dependency_overrides[get_embedding_service] = lambda: fake_embeddings
     monkeypatch.setattr(main, "engine", db_engine)
     monkeypatch.setattr(main, "create_redis_client", create_fake_redis)
+    monkeypatch.setattr(main, "create_queue_runtime", create_fake_queue)
+    monkeypatch.setattr(main, "close_queue_runtime", close_fake_queue)
+    monkeypatch.setattr(document_queue, "_retry_policy", lambda: object())
     try:
         with TestClient(main.app) as test_client:
             yield test_client

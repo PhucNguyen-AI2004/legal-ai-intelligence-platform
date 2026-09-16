@@ -47,16 +47,16 @@ export interface DocumentChunkListResponse {
 
 export interface ProcessDocumentResponse {
   document_id: string;
-  status: "processed";
-  chunk_count: number;
-  message: string;
+  job_id: string;
+  job_type: "process";
+  status: "queued";
 }
 
 export interface IndexDocumentResponse {
   document_id: string;
-  embedding_status: "indexed";
-  embedded_chunks: number;
-  model_name: string;
+  job_id: string;
+  job_type: "index";
+  status: "queued";
 }
 
 export interface UploadDocumentInput {

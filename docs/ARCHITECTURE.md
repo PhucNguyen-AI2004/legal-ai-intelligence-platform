@@ -1,8 +1,8 @@
 # Architecture
 
-## Current Phase 9B status — 2026-09-16
+## Current Phase 9C status — 2026-09-16
 
-Phase 9A is complete and owner accepted. Phase 9B is complete and owner accepted. See [Phase 9B validation](PHASE_9B_VALIDATION.md). Phase 9C–9D and Phase 10 have not started.
+Phases 9A and 9B are owner accepted. Phase 9C is complete and owner accepted. See [Phase 9C validation](PHASE_9C_VALIDATION.md). Phase 9D and Phase 10 have not started.
 
 ## Pre-8G Chat UX refinement
 
@@ -41,6 +41,10 @@ The frontend uses auth, document, conversation CRUD/detail and Phase 7 message r
 Phase 9B adds an internal `redis:7-alpine` Compose service without a host port or persistence volume. Snapshot/AOF persistence is disabled because counters are short-lived operational controls rather than business data. `core/redis.py` creates one pooled `redis.asyncio` client per application process and closes it during lifespan shutdown. `/health` remains dependency-free liveness; `/ready` now requires both PostgreSQL and Redis.
 
 `core/rate_limit.py` runs a Redis Lua fixed-window operation using Redis server time. It atomically increments the namespaced bucket, sets or repairs TTL, and returns counter plus TTL. Login/registration use actual peer IP and ignore untrusted forwarding headers. Authenticated policies reuse `CurrentUser.id`; JWT parsing is not duplicated. Default 60-second policies are auth 10, AI/search 20, and document write/process/index 10. Exceeded limits return 429 with `Retry-After`, `X-RateLimit-Limit`, and `X-RateLimit-Remaining`; Redis failures return a generic 503 instead of failing open. Health, readiness, documentation, ordinary GETs, and admin reads are not rate-limited.
+
+Phase 9C changes Redis durability: AOF with `appendfsync everysec` and the named `redis_data` volume now protect accepted RQ jobs across ordinary Redis/container restarts. Rate-limit counters remain expiring keys in the same Redis instance. The backend owns a synchronous RQ connection/queue alongside its async rate-limit/readiness client; both share configuration and are closed at shutdown. The dedicated `worker` service runs `python -m app.worker`, listens only to `documents`, shares document storage/model cache, and exposes no port.
+
+`POST /documents/{id}/process` and `/index` retain Phase 9B rate limiting, authenticate the persisted user, lock and validate the owned document, claim `processing`/`indexing`, enqueue only `document_id` and `request_id`, then return 202. Those existing states mean accepted/queued-or-running, so no migration or parallel job-status table is needed. Queue failure restores prior state; repeated requests see the claimed state and return 409. Worker jobs open their own SQLAlchemy session, reload owner/state, call the existing synchronous domain service with an explicit worker claim, and persist terminal success/failure. Only database operational failures escape for two bounded RQ retries; permanent failures are safely recorded without raw exception text. Final retry exhaustion invokes a failure callback so state cannot remain active indefinitely.
 
 `app/api/` defines HTTP contracts, `app/schemas/` validation/public responses, `app/models/` relational models, and `app/services/` storage, processing, embeddings, search, RAG and chat behavior.
 

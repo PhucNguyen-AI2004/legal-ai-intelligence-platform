@@ -21,21 +21,26 @@ logger = logging.getLogger(__name__)
 def process_document(
     document_id: UUID, owner_id: UUID, db: Session,
     storage: DocumentStorage, settings: Settings,
+    *, already_claimed: bool = False,
 ) -> int:
     # Claim under a row lock, then commit so other requests see processing.
     document = get_document(db, document_id, owner_id, lock=True)
-    if document.status == "processing":
+    if already_claimed:
+        if document.status != "processing":
+            raise HTTPException(409, "Document processing job is no longer active")
+    elif document.status == "processing":
         raise HTTPException(409, "Document is already processing")
     if document.embedding_status == "indexing":
         raise HTTPException(409, "Cannot process a document while it is indexing")
     key, file_type = document.stored_filename, document.file_type
-    document.status = "processing"
-    document.processing_error = None
-    # Hide old vectors immediately; successful chunk replacement cascades their deletion.
-    document.embedding_status = "pending"
-    document.embedding_error = None
-    document.embedded_at = None
-    db.commit()
+    if not already_claimed:
+        document.status = "processing"
+        document.processing_error = None
+        # Hide old vectors immediately; successful chunk replacement cascades their deletion.
+        document.embedding_status = "pending"
+        document.embedding_error = None
+        document.embedded_at = None
+        db.commit()
 
     try:
         text = normalize_text(extract_text(storage.path_for(key), file_type))

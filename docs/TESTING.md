@@ -103,3 +103,14 @@ docker compose config --quiet
 ```
 
 Tests inject async Redis doubles; they require no Redis daemon, external network, real embedding model, or paid LLM. Use [PHASE_9B_VALIDATION](PHASE_9B_VALIDATION.md) for Compose health, 429 reset/headers, failure-closed 503 behavior, and readiness checks.
+
+## Phase 9C worker and asynchronous document validation
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q app tests
+.\.venv\Scripts\python.exe -m pytest -q tests/test_background_jobs.py tests/test_document_processing.py tests/test_semantic_search.py tests/test_rate_limiting.py tests/test_production_foundation.py --basetemp=.pytest_9c_owner_focused -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest -q --basetemp=.pytest_9c_owner_full -p no:cacheprovider
+docker compose config --quiet
+```
+
+Because Phase 9C minimally changes document UI behavior, also run from `frontend/`: `npm.cmd run lint`, `npm.cmd run typecheck`, `node --experimental-strip-types --test tests/*.test.mjs`, and `npm.cmd run build`. See [PHASE_9C_VALIDATION](PHASE_9C_VALIDATION.md) for worker/RQ inspection, AOF restart survival, 202/state polling, duplicate rejection, failures, and logs.

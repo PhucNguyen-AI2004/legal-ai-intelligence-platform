@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     auth_rate_limit: int = Field(default=10, ge=1, le=10000)
     ai_rate_limit: int = Field(default=20, ge=1, le=10000)
     document_write_rate_limit: int = Field(default=10, ge=1, le=10000)
+    document_queue_name: Literal["documents"] = "documents"
 
     @field_validator("embedding_dimension")
     @classmethod

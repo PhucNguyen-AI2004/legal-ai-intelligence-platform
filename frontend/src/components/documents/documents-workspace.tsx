@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FilePlus2, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +9,12 @@ import { ConfirmDeleteDialog } from "./confirm-delete-dialog";
 import { DocumentsTable } from "./documents-table";
 import { UploadDocumentDialog } from "./upload-document-dialog";
 import { deleteDocument, indexDocument, listDocuments, processDocument } from "@/lib/documents/document-api";
-import { documentErrorMessage } from "@/lib/documents/document-utils";
+import { documentErrorMessage, isPipelineActive } from "@/lib/documents/document-utils";
 import type { DocumentRecord } from "@/lib/documents/types";
 
 const PAGE_SIZE = 20;
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_ATTEMPTS = 40;
 type BusyState = { id: string; action: "process" | "index" | "delete" } | null;
 
 export function DocumentsWorkspace({ initialFeedback }: { initialFeedback?: string }) {
@@ -26,9 +28,10 @@ export function DocumentsWorkspace({ initialFeedback }: { initialFeedback?: stri
   const [uploadOpen, setUploadOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DocumentRecord | null>(null);
   const [busy, setBusy] = useState<BusyState>(null);
+  const pollAttempts = useRef(0);
 
-  const load = useCallback(async (nextSkip: number) => {
-    setIsLoading(true);
+  const load = useCallback(async (nextSkip: number, background = false) => {
+    if (!background) setIsLoading(true);
     setError(null);
     try {
       const response = await listDocuments(nextSkip, PAGE_SIZE);
@@ -38,11 +41,24 @@ export function DocumentsWorkspace({ initialFeedback }: { initialFeedback?: stri
     } catch (caught) {
       setError(documentErrorMessage(caught, "load"));
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => { queueMicrotask(() => void load(0)); }, [load]);
+
+  useEffect(() => {
+    if (!documents.some(isPipelineActive)) {
+      pollAttempts.current = 0;
+      return;
+    }
+    if (pollAttempts.current >= MAX_POLL_ATTEMPTS) return;
+    const timer = window.setTimeout(() => {
+      pollAttempts.current += 1;
+      void load(skip, true);
+    }, POLL_INTERVAL_MS);
+    return () => window.clearTimeout(timer);
+  }, [documents, load, skip]);
 
   const visibleDocuments = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("vi");
@@ -55,7 +71,7 @@ export function DocumentsWorkspace({ initialFeedback }: { initialFeedback?: stri
     setFeedback(null);
     try {
       if (action === "process") await processDocument(document.id); else await indexDocument(document.id);
-      setFeedback(action === "process" ? "Xử lý tài liệu thành công." : "Lập chỉ mục thành công.");
+      setFeedback(action === "process" ? "Yêu cầu xử lý đã được xếp hàng." : "Yêu cầu lập chỉ mục đã được xếp hàng.");
       await load(skip);
     } catch (caught) {
       const message = documentErrorMessage(caught, action);

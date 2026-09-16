@@ -17,11 +17,17 @@ from app.services.embeddings import EmbeddingBackend, EmbeddingError, validate_v
 logger = logging.getLogger("uvicorn.error")
 
 
-def index_document(document_id: UUID, owner_id: UUID, db: Session, backend: EmbeddingBackend) -> int:
+def index_document(
+    document_id: UUID, owner_id: UUID, db: Session, backend: EmbeddingBackend,
+    *, already_claimed: bool = False,
+) -> int:
     document = get_document(db, document_id, owner_id, lock=True)
     if document.status != "processed":
         raise HTTPException(409, "Document must be processed before indexing")
-    if document.embedding_status == "indexing":
+    if already_claimed:
+        if document.embedding_status != "indexing":
+            raise HTTPException(409, "Document indexing job is no longer active")
+    elif document.embedding_status == "indexing":
         raise HTTPException(409, "Document is already indexing")
     chunks = db.execute(
         select(DocumentChunk.id, DocumentChunk.content)
@@ -29,9 +35,10 @@ def index_document(document_id: UUID, owner_id: UUID, db: Session, backend: Embe
     ).all()
     if not chunks:
         raise HTTPException(409, "Document has no chunks to index")
-    document.embedding_status = "indexing"
-    document.embedding_error = None
-    db.commit()
+    if not already_claimed:
+        document.embedding_status = "indexing"
+        document.embedding_error = None
+        db.commit()
     logger.info("Document indexing started: document_id=%s chunks=%s", document_id, len(chunks))
 
     try:

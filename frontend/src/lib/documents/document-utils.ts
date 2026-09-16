@@ -12,6 +12,10 @@ export function canIndex(document: DocumentRecord): boolean {
   return document.status === "processed" && ["pending", "failed"].includes(document.embedding_status);
 }
 
+export function isPipelineActive(document: DocumentRecord): boolean {
+  return document.status === "processing" || document.embedding_status === "indexing";
+}
+
 export function formatDate(value: string | null): string {
   return value ? new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—";
 }

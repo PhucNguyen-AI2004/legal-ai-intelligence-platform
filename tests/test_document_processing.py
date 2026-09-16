@@ -29,11 +29,11 @@ def processing_document(client):
 def test_process_and_paginated_chunks(client, processing_document):
     headers, document_id = processing_document
     response = client.post(f"/documents/{document_id}/process", headers=headers)
-    assert response.status_code == 200, response.text
-    assert response.json()["status"] == "processed"
-    count = response.json()["chunk_count"]
-    assert count > 1
+    assert response.status_code == 202, response.text
+    assert response.json()["status"] == "queued"
     page = client.get(f"/documents/{document_id}/chunks?skip=1&limit=1", headers=headers).json()
+    count = page["total"]
+    assert count > 1
     assert page["total"] == count and page["status"] == "processed"
     assert page["items"][0]["chunk_index"] == 1
     assert page["items"][0]["char_count"] == len(page["items"][0]["content"])
@@ -48,19 +48,19 @@ def test_docx_process(client, docx_bytes):
         "law.docx", docx_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )}).json()
     response = client.post(f"/documents/{uploaded['id']}/process", headers=headers)
-    assert response.status_code == 200, response.text
+    assert response.status_code == 202, response.text
 
 
 def test_pdf_process(client, pdf_bytes):
     headers = headers_for(client, "pdf@example.com")
     uploaded = client.post("/documents", headers=headers, files={"file": ("law.pdf", pdf_bytes, "application/pdf")}).json()
-    assert client.post(f"/documents/{uploaded['id']}/process", headers=headers).status_code == 200
+    assert client.post(f"/documents/{uploaded['id']}/process", headers=headers).status_code == 202
     chunks = client.get(f"/documents/{uploaded['id']}/chunks", headers=headers).json()["items"]
     assert "Article 1. Scope." in chunks[0]["content"]
 
 
-@pytest.mark.parametrize("case,expected", [("empty",422), ("invalid_utf8",422), ("missing",409)])
-def test_processing_errors_are_persisted(client, processing_document, db_session, document_storage, case, expected):
+@pytest.mark.parametrize("case", ["empty", "invalid_utf8", "missing"])
+def test_processing_errors_are_persisted(client, processing_document, db_session, document_storage, case):
     headers, document_id = processing_document
     document = db_session.get(Document, UUID(document_id))
     path = document_storage / document.stored_filename
@@ -70,7 +70,7 @@ def test_processing_errors_are_persisted(client, processing_document, db_session
         # Phase 3 rejects empty uploads; simulate a damaged stored file.
         path.write_bytes(b"" if case == "empty" else b"\xff")
     response = client.post(f"/documents/{document_id}/process", headers=headers)
-    assert response.status_code == expected, response.text
+    assert response.status_code == 202, response.text
     detail = client.get(f"/documents/{document_id}", headers=headers).json()
     assert detail["status"] == "failed" and detail["processing_error"]
     assert str(document_storage) not in response.text + detail["processing_error"]
@@ -81,21 +81,20 @@ def test_pdf_without_text_fails(client, blank_pdf_bytes):
     headers = headers_for(client, "scan@example.com")
     uploaded = client.post("/documents", headers=headers, files={"file": ("scan.pdf", blank_pdf_bytes, "application/pdf")}).json()
     response = client.post(f"/documents/{uploaded['id']}/process", headers=headers)
-    assert response.status_code == 422 and "OCR" in response.json()["detail"]
+    assert response.status_code == 202
     assert client.get(f"/documents/{uploaded['id']}", headers=headers).json()["status"] == "failed"
 
 
 def test_reprocess_replaces_chunks(client, processing_document, monkeypatch):
     headers, document_id = processing_document
     path = f"/documents/{document_id}"
-    assert client.post(path + "/process", headers=headers).status_code == 200
+    assert client.post(path + "/process", headers=headers).status_code == 202
     first = client.get(path + "/chunks?limit=100", headers=headers).json()
     monkeypatch.setattr(get_settings(), "chunk_size", 400)
     monkeypatch.setattr(get_settings(), "chunk_overlap", 50)
     response = client.post(path + "/process", headers=headers)
-    assert response.status_code == 200
+    assert response.status_code == 202
     second = client.get(path + "/chunks?limit=100", headers=headers).json()
-    assert second["total"] == response.json()["chunk_count"]
     assert second["total"] > first["total"]
     assert [item["chunk_index"] for item in second["items"]] == list(range(second["total"]))
     assert {item["id"] for item in first["items"]}.isdisjoint(item["id"] for item in second["items"])
@@ -104,7 +103,7 @@ def test_reprocess_replaces_chunks(client, processing_document, monkeypatch):
 def test_failed_reprocess_rolls_back_partial_replacement(client, processing_document, db_session, monkeypatch):
     headers, document_id = processing_document
     path = f"/documents/{document_id}"
-    assert client.post(path + "/process", headers=headers).status_code == 200
+    assert client.post(path + "/process", headers=headers).status_code == 202
     old = client.get(path + "/chunks?limit=100", headers=headers).json()["items"]
     real_add_all = db_session.add_all
     def fail_after_insert(objects):
@@ -113,7 +112,7 @@ def test_failed_reprocess_rolls_back_partial_replacement(client, processing_docu
         raise SQLAlchemyError("private database diagnostic")
     monkeypatch.setattr(db_session, "add_all", fail_after_insert)
     response = client.post(path + "/process", headers=headers)
-    assert response.status_code == 503 and "private" not in response.text
+    assert response.status_code == 202 and "private" not in response.text
     current = client.get(path + "/chunks?limit=100", headers=headers).json()
     assert current["status"] == "failed" and current["items"] == old
 
@@ -124,7 +123,7 @@ def test_unexpected_error_is_sanitized_and_failed(client, processing_document, m
         raise RuntimeError("private path and document contents")
     monkeypatch.setattr(document_processing, "extract_text", fail)
     response = client.post(f"/documents/{document_id}/process", headers=headers)
-    assert response.status_code == 500 and "private" not in response.text
+    assert response.status_code == 202 and "private" not in response.text
     assert client.get(f"/documents/{document_id}", headers=headers).json()["processing_error"] == "Document processing failed"
 
 
@@ -151,14 +150,14 @@ def test_claim_is_set_before_extraction_and_failed_can_retry(client, processing_
         assert current.status == "processing" and current.processing_error is None
         return original(*args)
     monkeypatch.setattr(document_processing, "extract_text", check_claim)
-    assert client.post(f"/documents/{document_id}/process", headers=headers).status_code == 200
+    assert client.post(f"/documents/{document_id}/process", headers=headers).status_code == 202
     assert db_session.get(Document, UUID(document_id)).processing_error is None
 
 
 def test_chunks_cascade_on_document_deletion(client, processing_document, db_session):
     headers, document_id = processing_document
     path = f"/documents/{document_id}"
-    assert client.post(path + "/process", headers=headers).status_code == 200
+    assert client.post(path + "/process", headers=headers).status_code == 202
     assert client.delete(path, headers=headers).status_code == 204
     assert db_session.scalar(select(func.count()).select_from(DocumentChunk)) == 0
 

@@ -1,8 +1,8 @@
 # LEGAL AI INTELLIGENCE PLATFORM
 
-## Current Phase 9B status — 2026-09-16
+## Current Phase 9C status — 2026-09-16
 
-Phase 9A is complete and owner accepted. Phase 9B is complete and owner accepted. Redis provides ephemeral atomic fixed-window counters keyed by peer IP for pre-auth endpoints and persisted user UUID for authenticated expensive routes. `/ready` now requires PostgreSQL and Redis. No caching, queues, workers, migrations, distributed sessions, or frontend changes were added. See [Phase 9B validation](PHASE_9B_VALIDATION.md). Phase 9 remains in progress.
+Phases 9A and 9B are owner accepted. Phase 9C is complete and owner accepted. Redis now persists both rate-limit counters and accepted RQ document jobs using AOF. Processing/indexing are asynchronous while PostgreSQL document states remain the product source of truth. A dedicated worker shares document storage/model cache, and the existing UI performs bounded polling only while work is active. No migration, generic jobs API/table, chat job, or automatic upload pipeline was added. See [Phase 9C validation](PHASE_9C_VALIDATION.md).
 
 **Pre-8G Chat UX refinement:** frontend-only Stop waiting with draft copies and history reconciliation, per-answer Sources drawer, and cleaner user/assistant hierarchy are implemented. Owner manual acceptance and owner-local validation PASS. No backend cancellation or streaming; Phase 8G has not started. See [current validation](PRE_8G_CHAT_UX_VALIDATION.md).
 

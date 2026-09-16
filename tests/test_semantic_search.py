@@ -27,10 +27,10 @@ def make_document(client, headers, text="access rights", process=True, index=Fal
     assert response.status_code == 201
     identity = response.json()["id"]
     if process:
-        assert client.post(f"/documents/{identity}/process", headers=headers).status_code == 200
+        assert client.post(f"/documents/{identity}/process", headers=headers).status_code == 202
     if index:
         response = client.post(f"/documents/{identity}/index", headers=headers)
-        assert response.status_code == 200, response.text
+        assert response.status_code == 202, response.text
     return identity
 
 
@@ -41,13 +41,13 @@ def search(client, headers, **values):
 def test_index_processed_document_and_reindex(client, search_owner, db_session, fake_embeddings):
     identity = make_document(client, search_owner, "access rights\n\n"*150)
     first = client.post(f"/documents/{identity}/index", headers=search_owner)
-    assert first.status_code == 200, first.text
-    assert first.json()["embedding_status"] == "indexed"
-    count = first.json()["embedded_chunks"]
+    assert first.status_code == 202, first.text
+    assert first.json()["status"] == "queued"
+    count = db_session.scalar(select(func.count()).select_from(ChunkEmbedding))
     assert count > 1 and len(fake_embeddings.document_calls) == 1
     old_ids = set(db_session.scalars(select(ChunkEmbedding.id)).all())
     assert len(old_ids) == count
-    assert client.post(f"/documents/{identity}/index", headers=search_owner).status_code == 200
+    assert client.post(f"/documents/{identity}/index", headers=search_owner).status_code == 202
     new_ids = set(db_session.scalars(select(ChunkEmbedding.id)).all())
     assert len(new_ids) == count and old_ids.isdisjoint(new_ids)
     document = client.get(f"/documents/{identity}", headers=search_owner).json()
@@ -108,7 +108,7 @@ def test_search_excludes_wrong_model_space(client, search_owner, db_session):
 
 def test_reprocess_invalidates_and_cascades_old_embeddings(client, search_owner, db_session):
     identity = make_document(client, search_owner, index=True)
-    assert client.post(f"/documents/{identity}/process", headers=search_owner).status_code == 200
+    assert client.post(f"/documents/{identity}/process", headers=search_owner).status_code == 202
     document = client.get(f"/documents/{identity}", headers=search_owner).json()
     assert document["embedding_status"] == "pending" and document["embedded_at"] is None
     assert db_session.scalar(select(func.count()).select_from(ChunkEmbedding)) == 0
@@ -124,7 +124,7 @@ def test_reindex_failure_preserves_previous_complete_set(client, search_owner, d
         raise SQLAlchemyError("private SQL diagnostic")
     monkeypatch.setattr(db_session, "add_all", fail)
     response = client.post(f"/documents/{identity}/index", headers=search_owner)
-    assert response.status_code == 503 and "private" not in response.text
+    assert response.status_code == 202 and "private" not in response.text
     assert set(db_session.scalars(select(ChunkEmbedding.id)).all()) == original
     assert client.get(f"/documents/{identity}", headers=search_owner).json()["embedding_status"] == "failed"
     assert search(client, search_owner).json()["results"] == []
@@ -137,9 +137,9 @@ def test_model_failure_sets_failed_and_retry_works(client, search_owner, fake_em
             raise RuntimeError("private token and path")
         context.setattr(fake_embeddings, "embed_documents", fail)
         response = client.post(f"/documents/{identity}/index", headers=search_owner)
-        assert response.status_code == 503 and "private" not in response.text
+        assert response.status_code == 202 and "private" not in response.text
     assert client.get(f"/documents/{identity}", headers=search_owner).json()["embedding_status"] == "failed"
-    assert client.post(f"/documents/{identity}/index", headers=search_owner).status_code == 200
+    assert client.post(f"/documents/{identity}/index", headers=search_owner).status_code == 202
 
 
 def test_indexing_blocks_index_process_and_delete(client, search_owner, db_session):

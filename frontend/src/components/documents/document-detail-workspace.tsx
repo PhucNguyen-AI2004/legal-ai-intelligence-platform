@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
@@ -9,10 +9,12 @@ import { DocumentActions } from "./document-actions";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { deleteDocument, getDocument, getDocumentChunks, indexDocument, processDocument } from "@/lib/documents/document-api";
-import { documentErrorMessage, formatDate, formatFileSize } from "@/lib/documents/document-utils";
+import { documentErrorMessage, formatDate, formatFileSize, isPipelineActive } from "@/lib/documents/document-utils";
 import type { DocumentChunk, DocumentRecord } from "@/lib/documents/types";
 
 type Action = "process" | "index" | "delete";
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_ATTEMPTS = 40;
 
 export function DocumentDetailWorkspace({ documentId }: { documentId: string }) {
   const router = useRouter();
@@ -25,9 +27,10 @@ export function DocumentDetailWorkspace({ documentId }: { documentId: string }) 
   const [feedback, setFeedback] = useState<string | null>(null);
   const [busy, setBusy] = useState<Action | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const pollAttempts = useRef(0);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
+  const load = useCallback(async (background = false) => {
+    if (!background) setIsLoading(true);
     setError(null);
     try {
       const current = await getDocument(documentId);
@@ -48,11 +51,24 @@ export function DocumentDetailWorkspace({ documentId }: { documentId: string }) 
     } catch (caught) {
       setError(documentErrorMessage(caught, "load"));
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
     }
   }, [documentId]);
 
   useEffect(() => { queueMicrotask(() => void load()); }, [load]);
+
+  useEffect(() => {
+    if (!document || !isPipelineActive(document)) {
+      pollAttempts.current = 0;
+      return;
+    }
+    if (pollAttempts.current >= MAX_POLL_ATTEMPTS) return;
+    const timer = window.setTimeout(() => {
+      pollAttempts.current += 1;
+      void load(true);
+    }, POLL_INTERVAL_MS);
+    return () => window.clearTimeout(timer);
+  }, [document, load]);
 
   async function runAction(action: "process" | "index") {
     if (!document) return;
@@ -61,7 +77,7 @@ export function DocumentDetailWorkspace({ documentId }: { documentId: string }) 
     setFeedback(null);
     try {
       if (action === "process") await processDocument(document.id); else await indexDocument(document.id);
-      setFeedback(action === "process" ? "Xử lý tài liệu thành công." : "Lập chỉ mục thành công.");
+      setFeedback(action === "process" ? "Yêu cầu xử lý đã được xếp hàng." : "Yêu cầu lập chỉ mục đã được xếp hàng.");
       await load();
     } catch (caught) {
       const message = documentErrorMessage(caught, action);

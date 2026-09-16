@@ -1,7 +1,9 @@
 services:
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -39,6 +41,7 @@ services:
       AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-10}
       AI_RATE_LIMIT: ${AI_RATE_LIMIT:-20}
       DOCUMENT_WRITE_RATE_LIMIT: ${DOCUMENT_WRITE_RATE_LIMIT:-10}
+      DOCUMENT_QUEUE_NAME: ${DOCUMENT_QUEUE_NAME:-documents}
       SECRET_KEY: ${SECRET_KEY:?Generate SECRET_KEY in .env}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       ALGORITHM: ${ALGORITHM:-HS256}
@@ -78,7 +81,36 @@ services:
       retries: 3
       start_period: 10s
 
+  worker:
+    build: .
+    command: ["python", "-m", "app.worker"]
+    environment:
+      APP_NAME: ${APP_NAME:?Set APP_NAME in .env}
+      APP_ENV: ${APP_ENV:?Set APP_ENV in .env}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SECRET_KEY: ${SECRET_KEY:?Generate SECRET_KEY in .env}
+      DOCUMENT_STORAGE_PATH: /app/storage/documents
+      CHUNK_SIZE: ${CHUNK_SIZE:-1200}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-200}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-intfloat/multilingual-e5-small}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-384}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-16}
+      HF_HOME: /app/.cache/huggingface
+      REDIS_URL: redis://redis:6379/0
+      REDIS_TIMEOUT_SECONDS: ${REDIS_TIMEOUT_SECONDS:-2}
+      DOCUMENT_QUEUE_NAME: ${DOCUMENT_QUEUE_NAME:-documents}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}
+    volumes:
+      - document_storage:/app/storage
+      - model_cache:/app/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
+  redis_data:
   document_storage:
   model_cache:

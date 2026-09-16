@@ -7,17 +7,17 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.document_route import DocumentRoute
 from app.core.config import get_settings
+from app.core.queue import get_document_queue
 from app.core.rate_limit import DocumentWriteRateLimit
+from app.core.request_context import get_request_id
 from app.models.document import Document
 from app.schemas.document import DocumentList, DocumentRead
-from app.schemas.document_chunk import DocumentChunkList, DocumentChunkRead, DocumentProcessResult
+from app.schemas.document_chunk import DocumentChunkList, DocumentChunkRead
 from app.services import documents
 from app.services.document_storage import DocumentStorage
 from app.services import document_processing
-from app.services.text_extraction import ProcessingError
-from app.services.embeddings import EmbeddingBackend, EmbeddingError, get_embedding_service
-from app.services.document_indexing import index_document as run_index_document
-from app.schemas.search import DocumentIndexResult
+from app.services.document_queue import QueueUnavailableError, enqueue_indexing, enqueue_processing
+from app.schemas.document_job import DocumentJobAccepted
 
 router = APIRouter(prefix="/documents", tags=["documents"], route_class=DocumentRoute)
 
@@ -27,6 +27,7 @@ def get_document_storage() -> DocumentStorage:
 
 
 Storage = Annotated[DocumentStorage, Depends(get_document_storage)]
+DocumentQueue = Annotated[object, Depends(get_document_queue)]
 
 
 @router.post("", response_model=DocumentRead, status_code=201)
@@ -47,19 +48,21 @@ def upload_document(
         file.file.close()
 
 
-@router.post("/{document_id}/index", response_model=DocumentIndexResult)
+@router.post("/{document_id}/index", response_model=DocumentJobAccepted, status_code=202)
 def index_document(
-    document_id: UUID, user: CurrentUser, _rate_limit: DocumentWriteRateLimit, db: DbSession,
-    backend: Annotated[EmbeddingBackend, Depends(get_embedding_service)],
-) -> DocumentIndexResult:
+    document_id: UUID, user: CurrentUser, _rate_limit: DocumentWriteRateLimit,
+    db: DbSession, queue: DocumentQueue,
+) -> DocumentJobAccepted:
     try:
-        count = run_index_document(document_id, user.id, db, backend)
-        return DocumentIndexResult(document_id=document_id, embedded_chunks=count, model_name=backend.model_name)
-    except EmbeddingError as exc:
-        raise HTTPException(503, str(exc)) from None
+        job = enqueue_indexing(db, queue, document_id, user.id, get_request_id() or "unknown")
+        return DocumentJobAccepted(
+            document_id=job.document_id, job_id=job.id, job_type=job.job_type
+        )
+    except QueueUnavailableError:
+        raise HTTPException(503, "Document queue unavailable") from None
     except SQLAlchemyError:
         db.rollback()
-        raise HTTPException(503, "Embedding database operation failed") from None
+        raise HTTPException(503, "Document database operation failed") from None
 
 
 @router.get("", response_model=DocumentList)
@@ -100,13 +103,18 @@ def delete_document(document_id: UUID, user: CurrentUser, db: DbSession, storage
     return Response(status_code=204)
 
 
-@router.post("/{document_id}/process", response_model=DocumentProcessResult)
-def process_document(document_id: UUID, user: CurrentUser, _rate_limit: DocumentWriteRateLimit, db: DbSession, storage: Storage) -> DocumentProcessResult:
+@router.post("/{document_id}/process", response_model=DocumentJobAccepted, status_code=202)
+def process_document(
+    document_id: UUID, user: CurrentUser, _rate_limit: DocumentWriteRateLimit,
+    db: DbSession, queue: DocumentQueue,
+) -> DocumentJobAccepted:
     try:
-        count = document_processing.process_document(document_id, user.id, db, storage, get_settings())
-        return DocumentProcessResult(document_id=document_id, chunk_count=count)
-    except ProcessingError as exc:
-        raise HTTPException(exc.status_code, exc.message) from None
+        job = enqueue_processing(db, queue, document_id, user.id, get_request_id() or "unknown")
+        return DocumentJobAccepted(
+            document_id=job.document_id, job_id=job.id, job_type=job.job_type
+        )
+    except QueueUnavailableError:
+        raise HTTPException(503, "Document queue unavailable") from None
     except SQLAlchemyError:
         db.rollback()
         raise HTTPException(503, "Document database operation failed") from None
