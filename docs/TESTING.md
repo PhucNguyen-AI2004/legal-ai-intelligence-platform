@@ -114,3 +114,17 @@ docker compose config --quiet
 ```
 
 Because Phase 9C minimally changes document UI behavior, also run from `frontend/`: `npm.cmd run lint`, `npm.cmd run typecheck`, `node --experimental-strip-types --test tests/*.test.mjs`, and `npm.cmd run build`. See [PHASE_9C_VALIDATION](PHASE_9C_VALIDATION.md) for worker/RQ inspection, AOF restart survival, 202/state polling, duplicate rejection, failures, and logs.
+
+## Phase 9D integration and hardening regression
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q app tests
+.\.venv\Scripts\python.exe -m pytest -q tests/test_phase9d_hardening.py --basetemp=.pytest_9d_owner_focused -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest -q tests/test_production_foundation.py --basetemp=.pytest_9d_owner_9a -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest -q tests/test_rate_limiting.py --basetemp=.pytest_9d_owner_9b -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest -q tests/test_background_jobs.py --basetemp=.pytest_9d_owner_9c -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest -q --basetemp=.pytest_9d_owner_full -p no:cacheprovider
+docker compose config --quiet
+```
+
+From `frontend/`, run `npm.cmd run lint`, `npm.cmd run typecheck`, `node --experimental-strip-types --test tests/*.test.mjs`, and `npm.cmd run build`. These suites use injected Redis/RQ/embedding/LLM doubles and require no external network or paid provider. Use [PHASE_9D_VALIDATION](PHASE_9D_VALIDATION.md) for safe Docker failure/recovery, concurrency, owner-isolation, and smoke procedures. Never destroy PostgreSQL or Redis volumes for these checks.

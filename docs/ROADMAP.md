@@ -1,5 +1,9 @@
 # Roadmap
 
+## Current Phase 9D status — 2026-09-16
+
+Phases 9A, 9B, and 9C are owner accepted. Phases 9A, 9B, 9C, and 9D are owner accepted. Phase 9 — Production Engineering: PASS — COMPLETE. Phase 10 has not started.; see [Phase 9D validation](PHASE_9D_VALIDATION.md). Phase 9 remains in progress and Phase 10 has not started. This status supersedes the historical Phase 9C status below.
+
 ## Current Phase 9C status — 2026-09-16
 
 Phases 9A and 9B are owner accepted. Phase 9C is complete and owner accepted. Document processing and indexing now enqueue durable Redis/RQ work handled by a dedicated worker. See [Phase 9C validation](PHASE_9C_VALIDATION.md). Phase 9 remains in progress; 9D and Phase 10 have not started.
@@ -24,14 +28,14 @@ Status baseline supplied by the project owner, reconciled with source on 2026-09
 | **8E** | **Completed / owner-manually accepted** | **Chat + RAG + Citations frontend integration** |
 | 8F | PASS — owner accepted | Frontend polish and regression; see PHASE_8F_VALIDATION.md |
 | 8G | PASS — owner accepted | Read-only Admin Dashboard V1 |
-| 9 | In progress — 9A/9B/9C PASS; owner accepted | Production engineering; 9D not started |
+| 9 | PASS — complete, owner accepted | Production engineering complete: 9A–9D |
 | 10 | Planned | Deployment: CI/CD, production configuration, portfolio packaging |
 
 ## Phase 8E boundary
 
 **The owner confirmed 8E manual acceptance in the explicit 8F task.** [Phase 8E validation](PHASE_8E_VALIDATION.md) retains historical results. Phase 8F owner-local automated validation and manual regression both PASS; Phase 8F is owner accepted.
 
-Phase 8F, 8G, 9A, 9B, and 9C are owner accepted. Phase 9D has not started. Commit/push only when requested. Do not automatically begin Phase 9D.Phase 8F, 8G, 9A, 9B, and 9C are owner accepted. Phase 9D has not started. Commit/push only when requested. Do not automatically begin Phase 9D.
+Phase 8F, 8G, 9A, 9B, and 9C are owner accepted. Phase 9D is implemented and awaits owner manual acceptance. Commit/push only when requested. Do not begin Phase 10.
 
 ## Optional later work
 

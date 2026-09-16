@@ -1,5 +1,9 @@
 # LEGAL AI INTELLIGENCE PLATFORM
 
+## Current Phase 9D status — 2026-09-16
+
+Phases 9A, 9B, and 9C are owner accepted. Phase 9D integration and hardening regression is implemented; | 9 | PASS — complete, owner accepted | Production engineering complete: 9A–9D |. The phase adds focused backend/frontend regression coverage and owner failure/recovery procedures, with no runtime feature, migration, generic jobs API/table, or topology change. See [Phase 9D validation](PHASE_9D_VALIDATION.md). Phase 10 has not started. This status supersedes the historical Phase 9C snapshot below.
+
 ## Current Phase 9C status — 2026-09-16
 
 Phases 9A and 9B are owner accepted. Phase 9C is complete and owner accepted. Redis now persists both rate-limit counters and accepted RQ document jobs using AOF. Processing/indexing are asynchronous while PostgreSQL document states remain the product source of truth. A dedicated worker shares document storage/model cache, and the existing UI performs bounded polling only while work is active. No migration, generic jobs API/table, chat job, or automatic upload pipeline was added. See [Phase 9C validation](PHASE_9C_VALIDATION.md).

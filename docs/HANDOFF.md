@@ -1,8 +1,12 @@
 # Handoff
 
+## Current Phase 9D status — 2026-09-16
+
+Phases 9A, 9B, and 9C are owner accepted. Phase 9D integration and hardening regression is implemented; Phases 9A, 9B, 9C, and 9D are complete and owner accepted. Phase 9 — Production Engineering is complete. Phase 10 has not started. Focused coverage now proves cross-contract ownership, pre-enqueue failure behavior, duplicate worker-delivery idempotency, generic correlated errors, transport headers, frontend polling cleanup, and authoritative error reconciliation. No production contract, migration, or deployment topology changed. See [Phase 9D validation](PHASE_9D_VALIDATION.md). Phase 9 is not yet complete and Phase 10 has not started.
+
 ## Current Phase 9C status — 2026-09-16
 
-Phases 9A and 9B are owner accepted. Phase 9C is complete and owner accepted. Process/index endpoints claim PostgreSQL state and return 202 after enqueueing identifiers on the named RQ `documents` queue. A dedicated worker reloads authoritative state and uses the existing synchronous services. Redis now uses AOF everysec and a named volume because it holds accepted work. The frontend shows queued state and polls active documents for at most two minutes. See [Phase 9C validation](PHASE_9C_VALIDATION.md). Phase 9D and Phase 10 have not started.
+Phases 9A and 9B are owner accepted. Phase 9C is complete and owner accepted. Process/index endpoints claim PostgreSQL state and return 202 after enqueueing identifiers on the named RQ `documents` queue. A dedicated worker reloads authoritative state and uses the existing synchronous services. Redis uses AOF everysec and a named volume because it holds accepted work. The frontend shows queued state and polls active documents for at most two minutes. See [Phase 9C validation](PHASE_9C_VALIDATION.md). This is historical 9C architecture context; current 9D status is above.
 
 **Historical interim work: Pre-8G Chat UX refinement.** Completed and owner accepted before Phase 8G; see validation/checklist. All other Pre-8G behavior is owner accepted. Selected citations now open full extracted chunk text inside the existing drawer, with ten-chunk pagination, exact UUID evidence verification, contained focus/scroll and labelled highlighting. No document-workspace navigation or management UI. Stop and source scope are unchanged; backend/API/database unchanged. Lint/typecheck and 30 tests pass; sandbox build EPERM on `.next/trace`, outside-sandbox retry declined. See [reader validation/checklist](PRE_8G_CHAT_UX_VALIDATION.md). No stage/commit/push; Phase 8G has not started.
 

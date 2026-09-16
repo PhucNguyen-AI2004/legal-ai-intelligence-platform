@@ -1,8 +1,14 @@
 # Architecture
 
+## Current Phase 9D status — 2026-09-16
+
+Phases 9A, 9B, and 9C are owner accepted. Phase 9D integration and hardening regression is implemented; owner manual acceptance is pending. It adds deterministic regression evidence without changing runtime architecture, API schemas, migration head `0006_user_roles`, or Compose topology. See [Phase 9D validation](PHASE_9D_VALIDATION.md). Phase 10 has not started.
+
+Phase 9D confirms PostgreSQL document state remains authoritative across rate-limit, queue, and worker boundaries. A row-locked state claim precedes RQ enqueue, enqueue failure restores the prior state, and stale/duplicate worker delivery is rejected by the existing active-state checks before chunk or embedding replacement. RQ/AOF reduces ordinary restart loss but is not exactly-once delivery; catastrophic accepted-job loss can leave an active state requiring operator review because no scheduler or reaper exists.
+
 ## Current Phase 9C status — 2026-09-16
 
-Phases 9A and 9B are owner accepted. Phase 9C is complete and owner accepted. See [Phase 9C validation](PHASE_9C_VALIDATION.md). Phase 9D and Phase 10 have not started.
+Phases 9A and 9B are owner accepted. Phase 9C is complete and owner accepted. See [Phase 9C validation](PHASE_9C_VALIDATION.md). This is historical 9C architecture context; current 9D status is above.
 
 ## Pre-8G Chat UX refinement
 
