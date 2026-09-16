@@ -1,8 +1,8 @@
 # Roadmap
 
-## Current Phase 8G status ? 2026-09-16
+## Current Phase 9A status — 2026-09-16
 
-Phase 8G Admin Dashboard V1 is explicitly authorized and implemented; owner manual acceptance is required. Persisted user/admin roles, explicit promotion CLI, protected read-only metadata APIs and the existing-app Admin Console are added. See [Phase 8G validation](PHASE_8G_VALIDATION.md) for contracts, exact results and remaining checks. Phase 9 and Phase 10 have not started. Earlier phase-gate statements below are historical and superseded by this authorization.
+Phase 8G is owner accepted. Phase 9A is complete and owner accepted. Request correlation, structured logs, DB readiness, configured-origin CORS hardening, and safe API headers are implemented. See [Phase 9A validation](PHASE_9A_VALIDATION.md). Phase 9 overall is in progress; 9B, 9C, 9D, and Phase 10 have not started.
 
 **Historical interim work: Pre-8G Chat UX refinement.** Completed and owner accepted; see [validation/checklist](PRE_8G_CHAT_UX_VALIDATION.md). This does not renumber phases or start 8G, 9 or 10.
 
@@ -24,14 +24,14 @@ Status baseline supplied by the project owner, reconciled with source on 2026-09
 | **8E** | **Completed / owner-manually accepted** | **Chat + RAG + Citations frontend integration** |
 | 8F | PASS — owner accepted | Frontend polish and regression; see PHASE_8F_VALIDATION.md |
 | 8G | PASS — owner accepted | Read-only Admin Dashboard V1 |
-| 9 | Planned | Production engineering: background work, logging, rate limits, testing/hardening |
+| 9 | In progress — 9A PASS, owner accepted | 9A observability/readiness/HTTP hardening complete; 9B–9D not started |
 | 10 | Planned | Deployment: CI/CD, production configuration, portfolio packaging |
 
 ## Phase 8E boundary
 
 **The owner confirmed 8E manual acceptance in the explicit 8F task.** [Phase 8E validation](PHASE_8E_VALIDATION.md) retains historical results. Phase 8F owner-local automated validation and manual regression both PASS; Phase 8F is owner accepted.
 
-Phase 8F is complete and owner accepted. Phase 8G is complete and owner accepted. Phase 9 has not started. Commit/push only when requested. Do not automatically begin Phase 9.
+Phase 8F and 8G are complete and owner accepted. Phase 9A is complete and owner accepted. Commit/push only when requested. Do not automatically begin Phase 9B.
 
 ## Optional later work
 

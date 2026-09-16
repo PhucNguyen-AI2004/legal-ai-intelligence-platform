@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     rag_max_context_chars: int = Field(default=12000, ge=100, le=50000)
     chat_history_max_messages: int = Field(default=6, ge=0, le=20)
     frontend_origin: AnyHttpUrl = AnyHttpUrl("http://localhost:3000")
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     @field_validator("embedding_dimension")
     @classmethod

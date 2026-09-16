@@ -1,8 +1,8 @@
 # LEGAL AI INTELLIGENCE PLATFORM
 
-## Current Phase 8G status ? 2026-09-16
+## Current Phase 9A status — 2026-09-16
 
-Phase 8G Admin Dashboard V1 is explicitly authorized and implemented; owner manual acceptance is required. Persisted user/admin roles, explicit promotion CLI, protected read-only metadata APIs and the existing-app Admin Console are added. See [Phase 8G validation](PHASE_8G_VALIDATION.md) for contracts, exact results and remaining checks. Phase 9 and Phase 10 have not started. Earlier phase-gate statements below are historical and superseded by this authorization.
+Phase 8G is owner accepted. Phase 9A is complete and owner accepted. The backend now has UUID request correlation, JSON application/request logs, DB-only `/ready`, narrowed configured-origin CORS, and API-safe security headers. No Redis, rate limits, workers, queues, deployment configuration, or frontend changes were added. See [Phase 9A validation](PHASE_9A_VALIDATION.md). Phase 9 overall remains in progress.
 
 **Pre-8G Chat UX refinement:** frontend-only Stop waiting with draft copies and history reconciliation, per-answer Sources drawer, and cleaner user/assistant hierarchy are implemented. Owner manual acceptance and owner-local validation PASS. No backend cancellation or streaming; Phase 8G has not started. See [current validation](PRE_8G_CHAT_UX_VALIDATION.md).
 

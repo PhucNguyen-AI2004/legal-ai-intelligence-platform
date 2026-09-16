@@ -20,7 +20,7 @@ TEST_DATABASE_URL enables PostgreSQL testing; it must use psycopg and a database
 
 ## Docker validation
 
-Use quiet configuration validation to avoid printing resolved credentials. Check `docker compose ps` and `/health` for basic operation; `/health` is liveness and startup checks DB connectivity, so it is not a continuous database readiness test.
+Use quiet configuration validation to avoid printing resolved credentials. Check `docker compose ps`, `/health` for liveness, and `/ready` for current database readiness. Readiness does not call the LLM provider.
 
 Dedicated disposable PostgreSQL tests (from repository root):
 
@@ -79,3 +79,16 @@ For this context-pack task, validate the seven requested Markdown files, their s
 See [PHASE_8G_VALIDATION](PHASE_8G_VALIDATION.md) for bootstrap, manual API/browser checks, test evidence and environment limitations. From the root, run `.\.venv\Scripts\python.exe -m pytest -q tests/test_admin.py tests/test_auth.py tests/test_migrations.py --basetemp=.pytest_8g_owner_focused -p no:cacheprovider`, then the full suite with a fresh project-local basetemp. From frontend, run `node --experimental-strip-types --test tests/*.test.mjs` in addition to lint/typecheck/build. After adding routes, `npx next typegen` regenerates stale route types; do not edit generated files manually.
 
 ADMIN ENDPOINT TESTS DO NOT CONSUME LLM API TOKENS.
+
+## Phase 9A production-foundation validation
+
+Run the focused tests before the complete backend suite:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q app
+.\.venv\Scripts\python.exe -m pytest -q tests/test_production_foundation.py --basetemp=.pytest_9a_owner_focused -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest -q --basetemp=.pytest_9a_owner_full -p no:cacheprovider
+docker compose config --quiet
+```
+
+Then use [PHASE_9A_VALIDATION](PHASE_9A_VALIDATION.md) for Docker, endpoint, auth/admin, CORS, Swagger, request-ID, and log-privacy checks. These tests use no paid LLM provider.

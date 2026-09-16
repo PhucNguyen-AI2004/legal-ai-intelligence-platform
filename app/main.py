@@ -16,6 +16,8 @@ from app.api.rag import router as rag_router
 from app.api.conversations import router as conversations_router
 from app.api.admin import router as admin_router
 from app.core.config import get_settings
+from app.core.http_middleware import HttpObservabilityMiddleware
+from app.core.logging import configure_logging
 from app.db.session import engine
 
 
@@ -35,14 +37,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 settings = get_settings()
+configure_logging(settings.log_level)
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[str(settings.frontend_origin).rstrip("/")],
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Accept", "Authorization", "Content-Type", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
 )
+app.add_middleware(HttpObservabilityMiddleware)
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(documents_router)

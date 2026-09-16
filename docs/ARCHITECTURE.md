@@ -1,8 +1,8 @@
 # Architecture
 
-## Current Phase 8G status ? 2026-09-16
+## Current Phase 9A status — 2026-09-16
 
-Phase 8G Admin Dashboard V1 is explicitly authorized and implemented; owner manual acceptance is required. Persisted user/admin roles, explicit promotion CLI, protected read-only metadata APIs and the existing-app Admin Console are added. See [Phase 8G validation](PHASE_8G_VALIDATION.md) for contracts, exact results and remaining checks. Phase 9 and Phase 10 have not started. Earlier phase-gate statements below are historical and superseded by this authorization.
+Phase 8G is owner accepted. Phase 9A is complete and owner accepted. See [Phase 9A validation](PHASE_9A_VALIDATION.md). Phase 9B–9D and Phase 10 have not started.
 
 ## Pre-8G Chat UX refinement
 
@@ -34,7 +34,9 @@ The frontend uses auth, document, conversation CRUD/detail and Phase 7 message r
 
 ## Backend and database
 
-`app/main.py` registers routers and configured-origin CORS. Startup verifies database connectivity; `/health` is liveness, not continuous database readiness. `app/core/config.py` validates settings; `core/security.py` handles password/JWT primitives. `api/dependencies.py` supplies current identity and request-scoped sessions from `db/session.py`. Synchronous database endpoints execute through FastAPI's thread pool. Services own business operations and explicit transaction boundaries; Alembic runs separately from startup.
+`app/main.py` registers routers, configured-origin CORS, and the Phase 9A HTTP middleware. Startup verifies database connectivity; `/health` remains lightweight liveness and `/ready` performs a current `SELECT 1` database readiness check. `core/request_context.py` uses a context variable so request correlation is available to application logs and can later be propagated as plain metadata to background work. `core/logging.py` emits standard-library JSON logs. The middleware validates an incoming canonical UUID (36 characters) or generates UUID4, returns `X-Request-ID`, logs method/path/status/duration without query strings or bodies, and adds `nosniff`, frame denial, and no-referrer headers. Unexpected errors are correlated server-side and return only a generic 500 body.
+
+`app/core/config.py` validates settings, including `LOG_LEVEL`; `core/security.py` handles password/JWT primitives. `api/dependencies.py` supplies current identity and request-scoped sessions from `db/session.py`. Synchronous database endpoints execute through FastAPI's thread pool. Services own business operations and explicit transaction boundaries; Alembic runs separately from startup. CORS permits only the configured `FRONTEND_ORIGIN`, required HTTP methods, and `Accept`, `Authorization`, `Content-Type`, and `X-Request-ID`; the response exposes `X-Request-ID` to browsers and does not enable credentials. HSTS and CSP are intentionally absent so local HTTP and Swagger remain valid.
 
 `app/api/` defines HTTP contracts, `app/schemas/` validation/public responses, `app/models/` relational models, and `app/services/` storage, processing, embeddings, search, RAG and chat behavior.
 

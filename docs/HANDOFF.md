@@ -1,8 +1,8 @@
 # Handoff
 
-## Current Phase 8G status ? 2026-09-16
+## Current Phase 9A status — 2026-09-16
 
-Phase 8G Admin Dashboard V1 is complete and owner accepted. Persisted user/admin roles, explicit promotion CLI, protected read-only metadata APIs and the existing-app Admin Console are implemented and validated. Phase 9 and Phase 10 have not started. Persisted user/admin roles, explicit promotion CLI, protected read-only metadata APIs and the existing-app Admin Console are added. See [Phase 8G validation](PHASE_8G_VALIDATION.md) for contracts, exact results and remaining checks. Phase 9 and Phase 10 have not started. Earlier phase-gate statements below are historical and superseded by this authorization.
+Phase 8G is complete and owner accepted. Phase 9A — Production Engineering Foundation is complete and owner accepted. Every HTTP response receives a bounded UUID request ID, request completion logs are structured JSON and content-safe, `/ready` checks database connectivity without LLM calls, CORS is constrained to the configured frontend origin and required methods/headers, and safe API response headers are applied. See [Phase 9A validation](PHASE_9A_VALIDATION.md). Phase 9 overall is in progress; 9B, 9C, 9D, and Phase 10 have not started.
 
 **Historical interim work: Pre-8G Chat UX refinement.** Completed and owner accepted before Phase 8G; see validation/checklist. All other Pre-8G behavior is owner accepted. Selected citations now open full extracted chunk text inside the existing drawer, with ten-chunk pagination, exact UUID evidence verification, contained focus/scroll and labelled highlighting. No document-workspace navigation or management UI. Stop and source scope are unchanged; backend/API/database unchanged. Lint/typecheck and 30 tests pass; sandbox build EPERM on `.next/trace`, outside-sandbox retry declined. See [reader validation/checklist](PRE_8G_CHAT_UX_VALIDATION.md). No stage/commit/push; Phase 8G has not started.
 
