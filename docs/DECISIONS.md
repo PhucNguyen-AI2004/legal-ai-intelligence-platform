@@ -53,3 +53,11 @@ These notes capture existing choices and owner-specified constraints, preserved 
 ## ADR-13 — Explicit, understandable architecture
 
 **Accepted.** Keep routes, schemas, services, models and transaction ownership visible; use synchronous SQLAlchemy with request-scoped sessions rather than unnecessary abstraction. Prefer Server Components and central client/token modules, adding client boundaries for interaction. Explain meaningful changes so the developer can understand and maintain their own code.
+
+## ADR-14 — Provider-neutral Compose production topology
+
+**Accepted for Phase 10.** Keep local Compose unchanged and use a standalone production Compose file. Caddy is the only public ingress. PostgreSQL and Redis remain on an internal data network; the non-public worker also joins the app network for outbound embedding-model retrieval when its rebuildable cache is empty. Network attachment alone does not expose a service without published ports. Application database access uses an explicit `DATABASE_URL`, with URI-reserved password characters percent-encoded, rather than unsafe Compose string construction. This avoids vendor lock-in and prevents production proxy constraints from breaking local development.
+
+## ADR-15 — Explicit migrations and manual deployment authorization
+
+**Accepted for Phase 10.** Alembic is a one-shot operator action after dependencies are healthy and before application services start. No long-running service runs migrations at startup. CI may test and build images but cannot publish or deploy; external deployment requires explicit owner authorization and real target configuration.

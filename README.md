@@ -1,6 +1,6 @@
 # Legal AI Intelligence Platform
 
-Current frontend status: Phase 8E is owner-manually accepted. Phase 8F polish is implemented with validation incomplete; see [Phase 8F validation](docs/PHASE_8F_VALIDATION.md). Earlier phase descriptions below are historical.
+Current status: Phase 9 — Production Engineering is complete and owner accepted. Phase 10 — Deployment / Productionization is also complete and owner accepted locally. Production images, reverse-proxy routing, CI/image validation, operational scripts, backup integrity, Redis persistence, worker recovery, semantic search, RAG/citations, authorization, rate limiting, and security headers have been validated in the local production simulation. No external/public deployment has been performed. See [deployment](docs/DEPLOYMENT.md), [operations](docs/OPERATIONS.md), [backup/restore](docs/BACKUP_RESTORE.md), and [Phase 10 validation](docs/PHASE_10_VALIDATION.md). Earlier phase descriptions below are historical.
 
 ## Project overview
 

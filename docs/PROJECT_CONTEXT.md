@@ -1,12 +1,28 @@
 # LEGAL AI INTELLIGENCE PLATFORM
 
+## Current Phase 10 status — 2026-09-19
+
+Phase 10 — Deployment / Productionization: **PASS — complete, owner accepted locally.**
+
+The provider-neutral production target is Docker Engine + Compose on a Linux VPS/VM. Caddy is the only public entry point; frontend, backend, worker, PostgreSQL, and Redis remain behind the production network topology.
+
+Production backend and frontend images have been built successfully from the current source. CI and image-build workflows are configured for validation without publishing images.
+
+Local owner production simulation has passed for proxy health/readiness, authentication, document upload/process/index, direct semantic search, chat/RAG/citations, admin authorization, rate limiting, request IDs/security headers, Redis persistence, worker queue behavior, worker stop/recovery, and production backup integrity.
+
+Migration head remains `0006_user_roles`.
+
+No external/public deployment, DNS/firewall mutation, or real production secret publication has been performed. External deployment remains an explicit operator action.
+
+See [Phase 10 validation](PHASE_10_VALIDATION.md), [deployment](DEPLOYMENT.md), [operations](OPERATIONS.md), and [backup/restore](BACKUP_RESTORE.md).
+
 ## Current Phase 9D status — 2026-09-16
 
-Phases 9A, 9B, and 9C are owner accepted. Phase 9D integration and hardening regression is implemented; | 9 | PASS — complete, owner accepted | Production engineering complete: 9A–9D |. The phase adds focused backend/frontend regression coverage and owner failure/recovery procedures, with no runtime feature, migration, generic jobs API/table, or topology change. See [Phase 9D validation](PHASE_9D_VALIDATION.md). Phase 10 has not started. This status supersedes the historical Phase 9C snapshot below.
+Phases 9A, 9B, 9C, and 9D are complete and owner accepted. Phase 9 — Production Engineering: **PASS — COMPLETE**.
 
-## Current Phase 9C status — 2026-09-16
+Phase 9D added focused backend/frontend regression coverage and owner failure/recovery procedures without introducing a new generic jobs API/table or changing the Phase 9 production contract.
 
-Phases 9A and 9B are owner accepted. Phase 9C is complete and owner accepted. Redis now persists both rate-limit counters and accepted RQ document jobs using AOF. Processing/indexing are asynchronous while PostgreSQL document states remain the product source of truth. A dedicated worker shares document storage/model cache, and the existing UI performs bounded polling only while work is active. No migration, generic jobs API/table, chat job, or automatic upload pipeline was added. See [Phase 9C validation](PHASE_9C_VALIDATION.md).
+This Phase 9 status is historical and is superseded by the current Phase 10 status above. See [Phase 9D validation](PHASE_9D_VALIDATION.md).
 
 **Pre-8G Chat UX refinement:** frontend-only Stop waiting with draft copies and history reconciliation, per-answer Sources drawer, and cleaner user/assistant hierarchy are implemented. Owner manual acceptance and owner-local validation PASS. No backend cancellation or streaming; Phase 8G has not started. See [current validation](PRE_8G_CHAT_UX_VALIDATION.md).
 

@@ -128,3 +128,7 @@ docker compose config --quiet
 ```
 
 From `frontend/`, run `npm.cmd run lint`, `npm.cmd run typecheck`, `node --experimental-strip-types --test tests/*.test.mjs`, and `npm.cmd run build`. These suites use injected Redis/RQ/embedding/LLM doubles and require no external network or paid provider. Use [PHASE_9D_VALIDATION](PHASE_9D_VALIDATION.md) for safe Docker failure/recovery, concurrency, owner-isolation, and smoke procedures. Never destroy PostgreSQL or Redis volumes for these checks.
+
+## Phase 10 deployment/productionization
+
+Use synthetic values copied from `.env.production.example`; never print resolved Compose configuration because it contains secret-bearing fields. Validate development and production Compose with `config --quiet`, both Dockerfiles, ShellCheck for `scripts/*.sh`, GitHub Actions syntax, backend/full Phase 9 regressions, frontend lint/typecheck/tests/build, production image builds, and `git diff --check`. Local runtime simulation and manual product smoke remain owner acceptance steps; see [Phase 10 validation](PHASE_10_VALIDATION.md).

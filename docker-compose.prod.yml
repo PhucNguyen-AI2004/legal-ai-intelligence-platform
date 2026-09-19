@@ -1,0 +1,131 @@
+name: legal-ai-production
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env.production}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [data]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redis_data:/data
+    networks: [data]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    build:
+      context: .
+      target: production
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
+    env_file: ["${PRODUCTION_ENV_FILE:-.env.production}"]
+    environment: &backend_environment
+      APP_ENV: production
+      ROOT_PATH: /api
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.production}
+      REDIS_URL: redis://redis:6379/0
+      DOCUMENT_STORAGE_PATH: /app/storage/documents
+      HF_HOME: /app/.cache/huggingface
+    volumes: &application_volumes
+      - document_storage:/app/storage
+      - model_cache:/app/.cache/huggingface
+    networks: [app, data]
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      target: production
+    command: ["python", "-m", "app.worker"]
+    env_file: ["${PRODUCTION_ENV_FILE:-.env.production}"]
+    environment: *backend_environment
+    volumes: *application_volumes
+    networks: [app, data]
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      disable: true
+
+  migrate:
+    build:
+      context: .
+      target: production
+    command: ["alembic", "upgrade", "head"]
+    env_file: ["${PRODUCTION_ENV_FILE:-.env.production}"]
+    environment: *backend_environment
+    networks: [data]
+    restart: "no"
+    profiles: [tools]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: /api
+    networks: [app]
+    restart: unless-stopped
+    depends_on:
+      backend: {condition: service_healthy}
+
+  reverse-proxy:
+    image: caddy:2.10-alpine
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-http://localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [app]
+    restart: unless-stopped
+    depends_on:
+      frontend: {condition: service_healthy}
+
+networks:
+  app:
+  data:
+    internal: true
+
+volumes:
+  postgres_data:
+  redis_data:
+  document_storage:
+  model_cache:
+  caddy_data:
+  caddy_config:

@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import AnyHttpUrl, Field, PostgresDsn, RedisDsn, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
 
     app_name: str = Field(min_length=1)
     app_env: Literal["development", "test", "production"]
+    root_path: str = ""
     database_url: PostgresDsn
     secret_key: SecretStr
     access_token_expire_minutes: int = Field(default=30, ge=1, le=1440)
@@ -52,6 +54,13 @@ class Settings(BaseSettings):
     document_write_rate_limit: int = Field(default=10, ge=1, le=10000)
     document_queue_name: Literal["documents"] = "documents"
 
+    @field_validator("root_path")
+    @classmethod
+    def validate_root_path(cls, value: str) -> str:
+        if value and (not value.startswith("/") or value.endswith("/")):
+            raise ValueError("ROOT_PATH must be empty or start with one slash and have no trailing slash")
+        return value
+
     @field_validator("embedding_dimension")
     @classmethod
     def validate_embedding_dimension(cls, value: int) -> int:
@@ -75,6 +84,21 @@ class Settings(BaseSettings):
     def validate_chunk_overlap(self) -> "Settings":
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError("CHUNK_OVERLAP must be smaller than CHUNK_SIZE")
+        if self.app_env == "production":
+            secret = self.secret_key.get_secret_value()
+            database_password = urlsplit(str(self.database_url)).password or ""
+            if secret.upper().startswith("CHANGE_ME") or secret == "local_dev_only_change_me":
+                raise ValueError("Production SECRET_KEY must not use a documented placeholder")
+            if not database_password or database_password.upper().startswith("CHANGE_ME") or database_password == "local_dev_only_change_me":
+                raise ValueError("Production DATABASE_URL must use a non-placeholder password")
+            llm_key = self.llm_api_key.get_secret_value().strip()
+            if (
+                not self.llm_model.strip()
+                or self.llm_model.upper().startswith("CHANGE_ME")
+                or not llm_key
+                or llm_key.upper().startswith("CHANGE_ME")
+            ):
+                raise ValueError("Production requires LLM_MODEL and LLM_API_KEY")
         return self
 
     @property

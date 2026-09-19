@@ -2,6 +2,7 @@ import logging
 from uuid import uuid4
 
 from app.api import health as health_api
+from app import main
 
 
 def test_generated_request_id_and_security_headers(client):
@@ -108,3 +109,15 @@ def test_configured_cors_origin_and_unconfigured_origin(client):
 def test_docs_and_openapi_remain_available(client):
     assert client.get("/docs").status_code == 200
     assert client.get("/openapi.json").status_code == 200
+
+
+def test_docs_use_configured_external_root_path_for_openapi(client):
+    original_root_path = main.app.root_path
+    main.app.root_path = "/api"
+    try:
+        response = client.get("/docs")
+    finally:
+        main.app.root_path = original_root_path
+
+    assert response.status_code == 200
+    assert "/api/openapi.json" in response.text

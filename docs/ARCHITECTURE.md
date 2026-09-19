@@ -1,10 +1,32 @@
 # Architecture
 
+
+
+## Phase 10 production topology — PASS, owner accepted locally — 2026-09-19
+
+Production uses the standalone `docker-compose.prod.yml`, not an overlay. Caddy is the only public service and routes `/` to the standalone Next.js runtime and `/api/*` to FastAPI with the prefix removed. Backend and frontend publish no host ports. PostgreSQL and Redis are isolated on the internal `data` network.
+
+The worker joins both `data` and the outbound-capable `app` network so an empty model cache can fetch the configured embedding model. It publishes no host port and remains non-public. Backend and worker share persistent document storage and the rebuildable model cache. PostgreSQL and Redis retain named volumes, with Redis configured for AOF persistence.
+
+The production backend and worker share the same non-root application image. Uvicorn uses a single process because embedding workloads are memory-intensive. FastAPI uses `ROOT_PATH=/api` in production while Caddy strips the external `/api` prefix before forwarding requests. The worker explicitly disables the inherited HTTP healthcheck because the RQ process has no HTTP listener.
+
+Alembic does not run during normal service startup. The `migrate` profile is the explicit migration actor, and migration head remains `0006_user_roles`.
+
+Local production runtime validation has passed for proxy routing, health/readiness, PostgreSQL/pgvector, Redis persistence, RQ queue behavior, worker stop/recovery, semantic search, RAG/citations, authorization, rate limiting, security headers, and backup integrity.
+
+No external/public deployment, DNS/firewall mutation, or real production secret publication has been performed.
+
+See [deployment](DEPLOYMENT.md), [operations](OPERATIONS.md), [backup/restore](BACKUP_RESTORE.md), and [Phase 10 validation](PHASE_10_VALIDATION.md).
+
 ## Current Phase 9D status — 2026-09-16
 
-Phases 9A, 9B, and 9C are owner accepted. Phase 9D integration and hardening regression is implemented; owner manual acceptance is pending. It adds deterministic regression evidence without changing runtime architecture, API schemas, migration head `0006_user_roles`, or Compose topology. See [Phase 9D validation](PHASE_9D_VALIDATION.md). Phase 10 has not started.
+Phases 9A, 9B, 9C, and 9D are complete and owner accepted. Phase 9 — Production Engineering: **PASS — COMPLETE**.
+
+Phase 9D added deterministic regression evidence without changing the Phase 9 runtime architecture, API schemas, migration head `0006_user_roles`, or Compose topology.
 
 Phase 9D confirms PostgreSQL document state remains authoritative across rate-limit, queue, and worker boundaries. A row-locked state claim precedes RQ enqueue, enqueue failure restores the prior state, and stale/duplicate worker delivery is rejected by the existing active-state checks before chunk or embedding replacement. RQ/AOF reduces ordinary restart loss but is not exactly-once delivery; catastrophic accepted-job loss can leave an active state requiring operator review because no scheduler or reaper exists.
+
+This Phase 9 status is historical and is superseded by the current Phase 10 production topology above. See [Phase 9D validation](PHASE_9D_VALIDATION.md).
 
 ## Current Phase 9C status — 2026-09-16
 

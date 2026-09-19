@@ -1,8 +1,12 @@
 # Roadmap
 
+## Current Phase 10 status — 2026-09-19
+
+Phase 10 — Deployment / Productionization: **PASS — complete, owner accepted locally.** Production images/configuration, Caddy topology, CI and non-publishing image validation, operational scripts, backup/restore procedures, and local owner production simulation have been validated. No external/public deployment, DNS/firewall mutation, or real production secret publication was performed.
+
 ## Current Phase 9D status — 2026-09-16
 
-Phases 9A, 9B, and 9C are owner accepted. Phases 9A, 9B, 9C, and 9D are owner accepted. Phase 9 — Production Engineering: PASS — COMPLETE. Phase 10 has not started.; see [Phase 9D validation](PHASE_9D_VALIDATION.md). Phase 9 remains in progress and Phase 10 has not started. This status supersedes the historical Phase 9C status below.
+Phases 9A, 9B, 9C, and 9D are owner accepted. Phase 9 — Production Engineering: **PASS — COMPLETE**. See [Phase 9D validation](PHASE_9D_VALIDATION.md). This historical Phase 9 status is superseded by the current Phase 10 status above.
 
 ## Current Phase 9C status — 2026-09-16
 
@@ -29,7 +33,7 @@ Status baseline supplied by the project owner, reconciled with source on 2026-09
 | 8F | PASS — owner accepted | Frontend polish and regression; see PHASE_8F_VALIDATION.md |
 | 8G | PASS — owner accepted | Read-only Admin Dashboard V1 |
 | 9 | PASS — complete, owner accepted | Production engineering complete: 9A–9D |
-| 10 | Planned | Deployment: CI/CD, production configuration, portfolio packaging |
+| 10 | PASS — complete, owner accepted locally | Deployment/productionization: containers, reverse proxy, CI/image validation, operations, backup/restore, and local production simulation |
 
 ## Phase 8E boundary
 

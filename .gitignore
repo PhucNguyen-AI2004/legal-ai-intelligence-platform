@@ -23,6 +23,7 @@ storage/*
 !storage/.gitkeep
 .cache/
 backups/
+!.env.production.example
 frontend/node_modules/
 frontend/.next/
 frontend/.next-*/
@@ -32,3 +33,4 @@ frontend/*.tsbuildinfo
 *.sql
 .pytest_*/
 .agent-handoff/
+.agents/
